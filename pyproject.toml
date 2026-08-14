@@ -8,17 +8,18 @@ version = "0.1.0.dev0"
 description = "Python backend runtime for DeepSeek Harness"
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "MIT" }
-dependencies = ["jsonschema>=4.23,<5"]
+license = "MIT"
+dependencies = ["aiohttp>=3.11,<4", "jsonschema>=4.23,<5"]
 
 [dependency-groups]
 dev = ["pyright>=1.1.400,<2", "ruff>=0.12,<1"]
 
-[tool.setuptools]
-package-dir = { "" = "src" }
-
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["harness*"]
+
+[tool.setuptools.package-data]
+"harness.protocol" = ["*.json"]
 
 [tool.ruff]
 line-length = 100
@@ -27,4 +28,4 @@ target-version = "py312"
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
-include = ["src"]
+include = ["harness"]

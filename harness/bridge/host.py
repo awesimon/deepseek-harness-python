@@ -11,12 +11,15 @@ from types import MappingProxyType
 from harness.agent.values import JsonValue, freeze_json
 from harness.plugins import ClientArtifactRegistry
 
+from .events import BridgeEventRegistry, EventSink
 from .protocol import (
     PROTOCOL_VERSION,
+    BridgeEvent,
     DesiredClient,
     PagePluginState,
     PluginLoadResult,
     ReconcileCommand,
+    ReconcileComplete,
     RpcCall,
     RpcResult,
 )
@@ -42,6 +45,7 @@ class PagePluginSnapshot:
 class _Page:
     operation: int
     plugins: dict[str, PagePluginSnapshot]
+    completed_operation: str | None = None
 
 
 class BridgeRpcRegistry:
@@ -87,9 +91,11 @@ class BrowserBridge:
         self,
         clients: ClientArtifactRegistry,
         rpc: BridgeRpcRegistry | None = None,
+        events: BridgeEventRegistry | None = None,
     ) -> None:
         self.clients = clients
         self.rpc = rpc or BridgeRpcRegistry()
+        self.events = events or BridgeEventRegistry()
         self._pages: dict[str, _Page] = {}
         self._calls: dict[tuple[str, str], asyncio.Task[RpcResult]] = {}
 
@@ -101,6 +107,8 @@ class BrowserBridge:
         """Replace a page connection and return its complete desired graph."""
         if not page_id:
             raise ValueError("page id must not be empty")
+        if page_id in self._pages:
+            self.disconnect(page_id)
         plugins = {
             plugin_id: PagePluginSnapshot(revision, PagePluginState.ACTIVE, None)
             for plugin_id, revision in loaded.items()
@@ -112,15 +120,25 @@ class BrowserBridge:
         """Supersede prior work and return the complete desired graph."""
         page = self._page(page_id)
         page.operation += 1
-        desired = tuple(
-            DesiredClient(
-                plugin_id,
-                revision,
-                f"/plugins/{plugin_id}/{revision}/client.js",
-                self.clients.bundle_digest(plugin_id, revision),
+        desired_items: list[DesiredClient] = []
+        for plugin_id, revision in self.clients.snapshot().items():
+            artifact = self.clients.artifact(plugin_id, revision)
+            schema_url = (
+                None
+                if artifact.protocol_schema is None
+                else f"/plugins/{plugin_id}/{revision}/protocol.json"
             )
-            for plugin_id, revision in self.clients.snapshot().items()
-        )
+            desired_items.append(
+                DesiredClient(
+                    plugin_id,
+                    revision,
+                    f"/plugins/{plugin_id}/{revision}/client.js",
+                    artifact.bundle_sha256,
+                    schema_url,
+                    artifact.activation_policy,
+                )
+            )
+        desired = tuple(desired_items)
         return ReconcileCommand(PROTOCOL_VERSION, str(page.operation), desired)
 
     def report(self, page_id: str, result: PluginLoadResult) -> None:
@@ -140,6 +158,13 @@ class BrowserBridge:
                 result.error,
             )
 
+    def complete(self, page_id: str, result: ReconcileComplete) -> None:
+        """Record completion only for the page's current reconciliation operation."""
+        page = self._page(page_id)
+        if result.protocol != PROTOCOL_VERSION or result.operation_id != str(page.operation):
+            raise StaleBridgeMessageError("stale reconciliation completion")
+        page.completed_operation = result.operation_id
+
     def page_snapshot(self, page_id: str) -> Mapping[str, PagePluginSnapshot]:
         """Return immutable page-local plugin state."""
         return MappingProxyType(dict(self._page(page_id).plugins))
@@ -149,6 +174,45 @@ class BrowserBridge:
         if self.clients.current_revision(plugin_id) != revision:
             raise LookupError("client revision is not currently published")
         return self.clients.get(plugin_id, revision)
+
+    def protocol_schema(self, plugin_id: str, revision: str) -> bytes:
+        """Return exact plugin protocol Schema bytes for a current Revision."""
+        return self.clients.protocol_schema(plugin_id, revision)
+
+    def attach_page_events(self, page_id: str, sender: EventSink) -> Callable[[], None]:
+        """Attach a connection-owned outbound Event sink for a connected page."""
+        self._page(page_id)
+        return self.events.attach_page(page_id, sender)
+
+    async def receive_event(self, event: BridgeEvent) -> None:
+        """Authorize and dispatch one client Event to its backend handler."""
+        state = self._active_revision(event.page_id, event.plugin_id)
+        if state != event.revision:
+            raise StaleBridgeMessageError("page Event revision is not active")
+        await self.events.dispatch_backend(event)
+
+    async def emit_event(
+        self,
+        plugin_id: str,
+        revision: str,
+        name: str,
+        payload: JsonValue,
+        *,
+        page_id: str | None = None,
+    ) -> int:
+        """Emit one backend Event to matching active pages and return delivery count."""
+        targets = (page_id,) if page_id is not None else tuple(self._pages)
+        delivered = 0
+        for target in targets:
+            if self._active_revision(target, plugin_id) != revision:
+                if page_id is not None:
+                    raise StaleBridgeMessageError("target page revision is not active")
+                continue
+            await self.events.dispatch_client(
+                BridgeEvent(PROTOCOL_VERSION, target, plugin_id, revision, name, payload)
+            )
+            delivered += 1
+        return delivered
 
     async def call(self, call: RpcCall) -> RpcResult:
         """Execute one authorized page-local RPC with cancellation tracking."""
@@ -193,9 +257,16 @@ class BrowserBridge:
     def disconnect(self, page_id: str) -> None:
         """Remove ephemeral page state and cancel its outstanding calls."""
         self._pages.pop(page_id, None)
+        self.events.detach_page(page_id)
         for (owner, _call_id), task in tuple(self._calls.items()):
             if owner == page_id:
                 task.cancel()
+
+    def _active_revision(self, page_id: str, plugin_id: str) -> str | None:
+        state = self._page(page_id).plugins.get(plugin_id)
+        if state is None or state.state is not PagePluginState.ACTIVE:
+            return None
+        return state.revision
 
     def _page(self, page_id: str) -> _Page:
         try:

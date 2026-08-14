@@ -22,7 +22,7 @@ Plugin Manager 继续保存 Installed Plugin 和 Published Client Revision 的�
 
 每个 Frame 都是包含 `protocol: "1"` 和 Discriminant `type` 的 JSON Object。未知 Protocol Version 会用显式不兼容错误关闭逻辑连接。受支持版本中的未知 Frame Type 只使该 Frame 失败，不会改变页面状态。
 
-规范 JSON Schema 位于 `protocol/`。Python 和 TypeScript Value 由这些 Schema 生成或接受机械校验；手写副本不能独立漂移。
+规范 JSON Schema 和共享 Fixture 位于 `harness/protocol/`。Python 根据 Schema 校验每个 Frame，TypeScript 使用相同 Server Frame Fixture，避免手写协议类型独立漂移。
 
 ## 连接和协调
 
@@ -36,7 +36,7 @@ Plugin Manager 继续保存 Installed Plugin 和 Published Client Revision 的�
 
 Host 只为精确且当前已发布的 Plugin ID 和 Revision 提供 Bundle Byte。Response 包含 Immutable Cache Header 和声明的 SHA-256 Digest。缺失或已取消发布的 Revision 返回 Not Found，不能重定向到 Current。
 
-TypeScript Adapter 导入一个 Content-Addressed Module，解析其 Client Plugin Export，并在 Cordis TS Context 下挂载。生成的 Fiber 拥有 Listener、Slot、Style、Timer、RPC Handler 和其他 Effect。Unload 先释放 Fiber，再从 Adapter Active Table 中移除 Module Revision。
+TypeScript Adapter 导入一个 Content-Addressed Module，解析其 Client Plugin Export，并在 Cordis TS Context 下挂载。`createPlugin(api)` Export 通过带 Revision 的 `ClientPluginApi` 获得精确 Reconciliation Identity；不需要 Bridge API 时仍可直接导出 Plugin。生成的 Fiber 拥有 Listener、Slot、Style、Timer、RPC Handler 和其他 Effect。Unload 先释放 Fiber，再从 Adapter Active Table 中移除 Module Revision。
 
 本阶段信任 Browser Code Execution。User Approval 和 Generated-Code Guard 是发布或协调前额外叠加的产品 Policy。
 
@@ -49,6 +49,8 @@ Disconnect 会移除临时页面状态，并取消该页面未完成的 RPC Call
 ## Package-Private RPC
 
 Backend Plugin 在 `BridgeRpcRegistry` 中以自身 Plugin ID 和 Active Revision 注册 Method。Browser Code 只能调用相同 Plugin ID 和 Revision。Call 包含 JSON 兼容 Argument、不透明 Call ID 和可选 Cancellation Token。
+
+Backend Plugin 从 Plugin Manager 安装的隔离 `PLUGIN_RUNTIME_IDENTITY` Service 获取精确 Plugin ID 和 Revision。Browser Contribution 从 Reconciliation Entry 获取相同身份，并通过 `PluginChannel` 将其加入每个 RPC 和 Event Frame。
 
 Host 在调用 Handler 前拒绝缺失、已停止或过期 Revision。Success 和 Structured Failure Response 携带同一个 Call ID。Cancellation 是 Best Effort：它将 Call 标记为已取消，取消 Active Async Task，并抑制之后的 Success Response。
 
@@ -77,4 +79,4 @@ Event 在每个逻辑 Connection 内有序，但不持久化。模型可见后�
 - RPC Test 验证同 Plugin/Revision 授权、Structured Error、Cancellation、Handler Disposal 和过期 Call 拒绝。
 - TypeScript Test 挂载并卸载真实 Cordis TS 测试插件，并验证 Effect Cleanup。
 - 一个全栈无密钥场景启用插件、协调模拟页面、调用 Backend Method、更新两端 Revision、拒绝旧 Call，并在 Disable 时移除两端 Fiber。
-- `docs/progress.md` 区分 Transport-Independent Completion 和仍待实现的生产 WebSocket/HTTP Adapter。
+- aiohttp Adapter 在不拥有 Plugin State 的前提下，验证 HTTP Artifact Delivery 以及 WebSocket Reconciliation、RPC、Cancellation、Event 和 Connection Replacement。

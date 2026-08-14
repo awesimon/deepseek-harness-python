@@ -10,7 +10,7 @@ Dynamic Plugin Manager 负责一个逻辑插件中可选的 Python Backend 和 T
 
 第三阶段包括可信本地插件目录、根 Manifest 解析、内容 Revision、Python Entry Point 加载、PyCordis Fiber 归属、Client Bundle 发布、Enable、Disable、Update、单次激活回滚和可观察状态。
 
-远程 Package 下载、依赖安装、签名、Registry 分发、不受信任代码隔离、持久化 Inventory 和浏览器交付不属于本阶段。在允许第三方 Backend Plugin 前，后续进程型 `BackendHost` 必须替换可信进程内 Host。
+远程 Package 下载、依赖安装、签名、Registry 分发、不受信任代码隔离、持久化 Inventory 和浏览器交付不属于第三阶段。浏览器交付由第四阶段提供；在允许第三方 Backend Plugin 前，进程型 `BackendHost` 必须替换可信进程内 Host。
 
 ## 根 Manifest
 
@@ -73,6 +73,8 @@ Record 公开 Manifest、Source Root、Current Revision、Desired Enablement、B
 
 `BackendHost.start(revision, context)` 返回 Backend Activation Handle。可信进程内 Host 使用包含 Revision 的 Module Name 加载已声明文件，解析导出的 PluginSpec，并将其作为 Manager Context 的 Child 挂载。Handle 拥有该 Fiber，并通过正常 PyCordis Disposal 停止它。
 
+每次 Backend Activation 都会获得私有的 `PLUGIN_RUNTIME_IDENTITY` Service，其中包含由 Manager 确定的 Plugin ID 和 Revision。该 Service 使用隔离 Realm，并随 Backend Activation 一起移除。Backend Plugin 使用此身份注册带 Revision 的 Browser Bridge RPC 和 Event，不自行推导 Digest，也不通过用户配置接收身份。
+
 进程内 Host 只保证资源和注册项清理，不保证 Python Code Eviction。进程型 Host 会保留 Manager Interface，同时替换 Module Lifetime 和 Wire Transport。
 
 ## Client 发布
@@ -106,6 +108,7 @@ Update 在触碰 Active Revision 前构建并校验 Candidate，然后禁用当�
 - Manifest 测试覆盖仅后端、仅客户端、全栈、未知 Field、没有 Contribution、无效 Activation Policy 和逃逸根目录的 Path。
 - Revision 测试验证 Hash 的确定性，以及 Backend、Client、Protocol 或 Manifest Byte 改变都会改变 Hash。
 - Backend Plugin File 可以在运行时安装和启用、提供 PyCordis Service，并在 Disable 时完整移除。
+- Active Backend 能解析 Manager 管理的精确身份，其他 Plugin 不能观察该隔离 Identity Service。
 - Client Bundle 按不可变 Revision 发布并在 Disable 时移除，同时不声称浏览器已经激活。
 - Full-Stack Required Failure 回滚另一端 Contribution；Optional Failure 产生 `DEGRADED`。
 - Update 加载使用不同 Revision Module Name 的 Backend，并且绝不让两个 Revision 同时服务。

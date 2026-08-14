@@ -10,7 +10,7 @@ The Dynamic Plugin Manager owns one logical plugin across optional Python backen
 
 Phase 3 includes trusted local plugin directories, root manifest parsing, content revisions, Python entrypoint loading, PyCordis Fiber ownership, client bundle publication, enable, disable, update, rollback on one activation attempt, and observable status.
 
-Remote package download, dependency installation, signatures, registry distribution, untrusted code isolation, persistent inventory, and browser delivery remain outside this phase. A later process-backed `BackendHost` must replace the trusted in-process host before third-party backend plugins are admitted.
+Remote package download, dependency installation, signatures, registry distribution, untrusted code isolation, persistent inventory, and browser delivery are outside Phase 3. Browser delivery is supplied by Phase 4; a process-backed `BackendHost` must replace the trusted in-process host before third-party backend plugins are admitted.
 
 ## Root manifest
 
@@ -73,6 +73,8 @@ Each record exposes the manifest, source root, current revision, desired enablem
 
 `BackendHost.start(revision, context)` returns a backend activation handle. The trusted in-process host loads the declared file under a revision-qualified module name, resolves its exported PluginSpec, and mounts it as a child of the Manager Context. The handle owns that Fiber and stops it through normal PyCordis disposal.
 
+Each backend activation receives a private `PLUGIN_RUNTIME_IDENTITY` Service containing the Manager-authoritative Plugin ID and Revision. The Service uses an isolated Realm and is removed with the backend activation. Backend plugins use this identity for revision-qualified Browser Bridge RPC and Event registrations instead of deriving a digest or accepting identity through user configuration.
+
 The in-process host guarantees resource and registration teardown, not Python code eviction. A process-backed host will preserve the Manager interface while replacing module lifetime and wire transport.
 
 ## Client publication
@@ -106,6 +108,7 @@ All mutations for one Manager are serialized. Read snapshots are immutable. A se
 - Manifest tests cover backend-only, client-only, full-stack, unknown fields, absent contributions, invalid activation policy, and root-escape paths.
 - Revision tests prove deterministic hashing and changes for backend, client, protocol, or manifest bytes.
 - A backend plugin file can be installed and enabled at runtime, provide a PyCordis Service, and remove it completely on disable.
+- An active backend resolves its exact Manager-owned identity while another plugin cannot observe that isolated identity Service.
 - A client bundle is published by immutable revision and removed on disable without claiming browser activation.
 - Full-stack required failure rolls back the other contribution; optional failure yields `DEGRADED`.
 - Update loads a distinct revision-qualified backend module and never leaves both revisions serving.

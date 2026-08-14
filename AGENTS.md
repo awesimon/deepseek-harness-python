@@ -33,7 +33,7 @@ Do not repeatedly scan the original repository to regain context already capture
 ## Commands
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests
+python3 -m unittest discover -s tests
 ```
 
 Use the standard library in the Cordis kernel unless a maintained dependency removes substantial owned lifecycle or validation code.

@@ -1,0 +1,65 @@
+{
+  "serverValid": [
+    {
+      "protocol": "1",
+      "type": "reconcile",
+      "operationId": "operation-1",
+      "desired": [
+        {
+          "pluginId": "com.example.full-stack",
+          "revision": "rev-1",
+          "bundleUrl": "/plugins/com.example.full-stack/rev-1/client.js",
+          "bundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "protocolSchemaUrl": null,
+          "activationPolicy": "required"
+        }
+      ]
+    },
+    {
+      "protocol": "1",
+      "type": "rpc-result",
+      "callId": "call-1",
+      "result": { "value": "ok" }
+    },
+    {
+      "protocol": "1",
+      "type": "rpc-result",
+      "callId": "call-2",
+      "errorCode": "handler_error",
+      "errorMessage": "failed"
+    },
+    {
+      "protocol": "1",
+      "type": "event",
+      "pageId": "page-1",
+      "pluginId": "com.example.full-stack",
+      "revision": "rev-1",
+      "name": "changed",
+      "payload": { "value": 1 }
+    }
+  ],
+  "serverInvalid": [
+    {
+      "protocol": "2",
+      "type": "reconcile",
+      "operationId": "operation-1",
+      "desired": []
+    },
+    {
+      "protocol": "1",
+      "type": "rpc-result",
+      "callId": "call-1",
+      "result": null,
+      "extra": true
+    },
+    {
+      "protocol": "1",
+      "type": "event",
+      "pageId": "page-1",
+      "pluginId": "com.example.full-stack",
+      "revision": "rev-1",
+      "name": "",
+      "payload": null
+    }
+  ]
+}

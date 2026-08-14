@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deepseek.ai/harness/protocol/bridge-v1.schema.json",
+  "title": "DeepSeek Harness Browser Bridge v1",
+  "oneOf": [
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/reconcile" },
+    { "$ref": "#/$defs/pluginResult" },
+    { "$ref": "#/$defs/reconcileComplete" },
+    { "$ref": "#/$defs/rpcCall" },
+    { "$ref": "#/$defs/rpcResultSuccess" },
+    { "$ref": "#/$defs/rpcResultError" },
+    { "$ref": "#/$defs/rpcCancel" },
+    { "$ref": "#/$defs/event" }
+  ],
+  "$defs": {
+    "protocol": { "const": "1" },
+    "id": { "type": "string", "minLength": 1 },
+    "revision": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "pluginState": {
+      "enum": ["absent", "loading", "active", "waiting", "failed", "unloading"]
+    },
+    "desiredClient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pluginId", "revision", "bundleUrl", "bundleSha256", "protocolSchemaUrl", "activationPolicy"],
+      "properties": {
+        "pluginId": { "$ref": "#/$defs/id" },
+        "revision": { "$ref": "#/$defs/revision" },
+        "bundleUrl": { "type": "string", "minLength": 1 },
+        "bundleSha256": { "$ref": "#/$defs/sha256" },
+        "protocolSchemaUrl": {
+          "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "activationPolicy": { "enum": ["required", "optional"] }
+      }
+    },
+    "hello": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "type", "pageId", "loaded"],
+      "properties": {
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "type": { "const": "hello" },
+        "pageId": { "$ref": "#/$defs/id" },
+        "loaded": { "type": "object", "additionalProperties": { "$ref": "#/$defs/revision" } }
+      }
+    },
+    "reconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "type", "operationId", "desired"],
+      "properties": {
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "type": { "const": "reconcile" },
+        "operationId": { "$ref": "#/$defs/id" },
+        "desired": { "type": "array", "items": { "$ref": "#/$defs/desiredClient" } }
+      }
+    },
+    "pluginResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "type", "operationId", "pluginId", "revision", "state", "error"],
+      "properties": {
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "type": { "const": "plugin-result" },
+        "operationId": { "$ref": "#/$defs/id" },
+        "pluginId": { "$ref": "#/$defs/id" },
+        "revision": { "$ref": "#/$defs/revision" },
+        "state": { "$ref": "#/$defs/pluginState" },
+        "error": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] }
+      }
+    },
+    "reconcileComplete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "type", "operationId", "success", "error"],
+      "properties": {
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "type": { "const": "reconcile-complete" },
+        "operationId": { "$ref": "#/$defs/id" },
+        "success": { "type": "boolean" },
+        "error": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] }
+      },
+      "allOf": [{
+        "if": { "properties": { "success": { "const": true } } },
+        "then": { "properties": { "error": { "type": "null" } } },
+        "else": { "properties": { "error": { "type": "string", "minLength": 1 } } }
+      }]
+    },
+    "rpcCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "type", "pageId", "callId", "pluginId", "revision", "method", "arguments"],
+      "properties": {
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "type": { "const": "rpc-call" },
+        "pageId": { "$ref": "#/$defs/id" },
+        "callId": { "$ref": "#/$defs/id" },
+        "pluginId": { "$ref": "#/$defs/id" },
+        "revision": { "$ref": "#/$defs/revision" },
+        "method": { "$ref": "#/$defs/id" },
+        "arguments": { "type": "object" }
+      }
+    },
+    "rpcResultSuccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "type", "callId", "result"],
+      "properties": {
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "type": { "const": "rpc-result" },
+        "callId": { "$ref": "#/$defs/id" },
+        "result": true
+      }
+    },
+    "rpcResultError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "type", "callId", "errorCode", "errorMessage"],
+      "properties": {
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "type": { "const": "rpc-result" },
+        "callId": { "$ref": "#/$defs/id" },
+        "errorCode": { "$ref": "#/$defs/id" },
+        "errorMessage": { "$ref": "#/$defs/id" }
+      }
+    },
+    "rpcCancel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "type", "pageId", "callId"],
+      "properties": {
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "type": { "const": "rpc-cancel" },
+        "pageId": { "$ref": "#/$defs/id" },
+        "callId": { "$ref": "#/$defs/id" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "type", "pageId", "pluginId", "revision", "name", "payload"],
+      "properties": {
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "type": { "const": "event" },
+        "pageId": { "$ref": "#/$defs/id" },
+        "pluginId": { "$ref": "#/$defs/id" },
+        "revision": { "$ref": "#/$defs/revision" },
+        "name": { "$ref": "#/$defs/id" },
+        "payload": true
+      }
+    }
+  }
+}

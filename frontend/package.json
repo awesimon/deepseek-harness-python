@@ -1,0 +1,18 @@
+{
+  "name": "@deepseek-harness/browser-bridge-client",
+  "version": "0.1.0-dev.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

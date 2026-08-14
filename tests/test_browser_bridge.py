@@ -7,6 +7,8 @@ import unittest
 
 from harness.bridge import (
     PROTOCOL_VERSION,
+    BridgeEvent,
+    BridgeEventRegistry,
     BridgeRpcRegistry,
     BrowserBridge,
     PagePluginState,
@@ -23,7 +25,8 @@ class BrowserBridgeTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.clients = ClientArtifactRegistry()
         self.rpc = BridgeRpcRegistry()
-        self.bridge = BrowserBridge(self.clients, self.rpc)
+        self.events = BridgeEventRegistry()
+        self.bridge = BrowserBridge(self.clients, self.rpc, self.events)
 
     async def test_reconcile_reports_complete_graph_and_rejects_stale_result(self) -> None:
         """A newer operation makes older page results observational only."""
@@ -131,3 +134,68 @@ class BrowserBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.error_code, "cancelled")
         with self.assertRaises(LookupError):
             self.bridge.page_snapshot("page-1")
+
+    async def test_events_are_revision_scoped_ordered_and_disposable(self) -> None:
+        """Only active matching revisions exchange explicitly registered Events."""
+        self.clients.publish("com.example.client", "rev-1", b"bundle")
+        self.bridge.connect("page-1", {"com.example.client": "rev-1"})
+        client_events: list[int] = []
+        backend_events: list[tuple[str, int]] = []
+
+        async def send(event: BridgeEvent) -> None:
+            client_events.append(event.payload["sequence"])
+
+        detach = self.bridge.attach_page_events("page-1", send)
+        dispose = self.events.register(
+            "com.example.client",
+            "rev-1",
+            "changed",
+            lambda page_id, payload: backend_events.append((page_id, payload["sequence"])),
+        )
+        await self.bridge.receive_event(
+            BridgeEvent(
+                PROTOCOL_VERSION,
+                "page-1",
+                "com.example.client",
+                "rev-1",
+                "changed",
+                {"sequence": 1},
+            )
+        )
+        await self.bridge.emit_event(
+            "com.example.client",
+            "rev-1",
+            "changed",
+            {"sequence": 1},
+            page_id="page-1",
+        )
+        await self.bridge.emit_event(
+            "com.example.client",
+            "rev-1",
+            "changed",
+            {"sequence": 2},
+        )
+
+        self.assertEqual(backend_events, [("page-1", 1)])
+        self.assertEqual(client_events, [1, 2])
+        dispose()
+        with self.assertRaises(LookupError):
+            await self.bridge.receive_event(
+                BridgeEvent(
+                    PROTOCOL_VERSION,
+                    "page-1",
+                    "com.example.client",
+                    "rev-1",
+                    "changed",
+                    {"sequence": 2},
+                )
+            )
+        detach()
+        with self.assertRaises(LookupError):
+            await self.bridge.emit_event(
+                "com.example.client",
+                "rev-1",
+                "changed",
+                {"sequence": 3},
+                page_id="page-1",
+            )

@@ -188,6 +188,8 @@ class PluginManager:
                     manifest.plugin_id,
                     record.revision.digest,
                     record.revision.client_bundle,
+                    protocol_schema=record.revision.protocol_schema,
+                    activation_policy=manifest.client_policy.value,
                 )
             except BaseException as error:  # noqa: BLE001 -- contribution policy owns rollback
                 failures.append(("client", error, manifest.client_policy))

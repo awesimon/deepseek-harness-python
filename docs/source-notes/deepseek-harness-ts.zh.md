@@ -59,6 +59,7 @@
 - `.agents/notes/implemented/architecture/2026-07-23-client-plugin-loading-model.md`：Host 和 Browser 运行独立的 Cordis Tree，但使用相同的 Loader 治理模型。
 - Client Plugin Package 声明 `dsh.client` 并导出 `./client`。Host 扫描已挂载的 Loader Entry，解析构建后的 `client.js`，计算哈希，提供文件，并发送浏览器 Boot Graph。
 - 浏览器 Module System 将独立 Bundle 加载进 Lazy Module Table。Cordis Loader 负责激活、依赖等待、释放和刷新。HMR 使旧 Module 失效，释放旧 Fiber，移除其拥有的 Style，导入新 Revision 并挂载新 Fiber。
+- `vendor/cordis/src/registry.ts` 和 `vendor/cordis/src/fiber.ts`：`ctx.plugin(plugin, config)` 返回同时可等待的 Fiber。等待它会在生命周期稳定后报告配置或启动错误；`await fiber.dispose()` 会卸载其 Effect 并等待清理完成。Python Harness Client Adapter 使用这组公共生命周期 API 替换 Revision。
 - 仅客户端 Package 仍有一个空的 Host `apply()`，使一个 Host Composition Row 负责它的 Roster Presence。双端 Package 在根入口和 `./client` 都有实际行为。仅后端 Package 没有 Client 声明。
 - Python 决策：保留 Cordis TS。根插件 Manifest 取代 npm Metadata，成为跨语言身份；嵌套前端 Package Metadata 仅用于构建。
 

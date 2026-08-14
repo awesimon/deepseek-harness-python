@@ -59,6 +59,7 @@ Purpose: record the TypeScript mechanisms already inspected for the Python rewri
 - `.agents/notes/implemented/architecture/2026-07-23-client-plugin-loading-model.md`: host and browser run separate Cordis trees with the same Loader governance.
 - Client plugin packages declare `dsh.client` and export `./client`. The host scans mounted Loader entries, resolves built `client.js`, hashes it, serves it, and emits a browser boot graph.
 - The browser module system loads independent bundles into a lazy module table. Cordis Loader owns activation, dependency waiting, disposal, and refresh. HMR invalidates the old module, disposes the old fiber, removes owned styles, imports the new revision, and mounts a new fiber.
+- `vendor/cordis/src/registry.ts` and `vendor/cordis/src/fiber.ts`: `ctx.plugin(plugin, config)` returns a Fiber that is also awaitable. Awaiting it reports configuration or startup failure after lifecycle settlement; `await fiber.dispose()` unloads its Effects and settles cleanup. The Python Harness client adapter uses this public lifecycle pair for revision replacement.
 - A client-only package still has an empty host `apply()` so one host composition row owns its roster presence. A dual-face package has real root and `./client` behavior. A backend-only package has no client declaration.
 - Python decision: retain Cordis TS. A root plugin manifest replaces npm metadata as cross-language identity; nested frontend package metadata is build-only.
 

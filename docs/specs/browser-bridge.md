@@ -22,7 +22,7 @@ The Plugin Manager remains the process-wide authority for installed plugins and 
 
 Every frame is a JSON object containing `protocol: "1"` and a discriminant `type`. Unknown protocol versions close the logical connection with an explicit incompatibility error. Unknown frame types under a supported protocol fail that frame and do not mutate page state.
 
-The normative JSON Schemas live under `protocol/`. Python and TypeScript values are generated or mechanically checked against those schemas; handwritten copies cannot drift independently.
+The normative JSON Schema and shared fixtures live under `harness/protocol/`. Python validates every frame against the Schema, and TypeScript consumes the same server-frame fixtures so handwritten protocol types cannot drift independently.
 
 ## Connection and reconciliation
 
@@ -36,7 +36,7 @@ The page applies one reconciliation operation serially and reports one result pe
 
 The Host serves bundle bytes only for an exact currently published Plugin ID and Revision. Responses include immutable cache headers and the declared SHA-256 digest. Missing or unpublished revisions return not found rather than redirecting to current.
 
-The TypeScript adapter imports one content-addressed module, resolves its client plugin export, and mounts it under a Cordis TS Context. The resulting Fiber owns listeners, Slots, styles, timers, RPC handlers, and other Effects. Unload disposes the Fiber before removing the module revision from the adapter's active table.
+The TypeScript adapter imports one content-addressed module, resolves its client plugin export, and mounts it under a Cordis TS Context. A `createPlugin(api)` export receives the exact reconciliation identity through a revision-bound `ClientPluginApi`; direct plugin exports remain available when no Bridge API is needed. The resulting Fiber owns listeners, Slots, styles, timers, RPC handlers, and other Effects. Unload disposes the Fiber before removing the module revision from the adapter's active table.
 
 Browser code execution is trusted in this phase. User approval and generated-code guards are separate product policies layered before publication or reconciliation.
 
@@ -49,6 +49,8 @@ Disconnect removes ephemeral page state and cancels its outstanding RPC calls. R
 ## Package-private RPC
 
 Backend plugins register methods in `BridgeRpcRegistry` under their own Plugin ID and active Revision. Browser code calls only its same Plugin ID and Revision. Calls contain JSON-compatible arguments, an opaque Call ID, and an optional cancellation token.
+
+Backend plugins obtain their exact Plugin ID and Revision from the isolated `PLUGIN_RUNTIME_IDENTITY` Service installed by the Plugin Manager. Browser contributions obtain the same identity from their reconciliation entry and use a `PluginChannel` that adds it to every RPC and Event frame.
 
 The Host rejects missing, stopped, or stale revisions before invoking a handler. Success and structured failure responses carry the same Call ID. Cancellation is best effort: it marks the call cancelled, cancels an active async task, and suppresses a later success response.
 
@@ -77,4 +79,4 @@ Events are ordered per logical connection. They are not durable; model-visible c
 - RPC tests prove same-plugin/revision authorization, structured errors, cancellation, handler disposal, and stale-call rejection.
 - TypeScript tests mount and unload a real Cordis TS test plugin and prove Effect cleanup.
 - A full-stack keyless scenario enables one plugin, reconciles a simulated page, calls its backend method, updates both revisions, rejects the old call, and removes both Fibers on disable.
-- `docs/progress.md` distinguishes transport-independent completion from any production WebSocket/HTTP adapter still pending.
+- An aiohttp adapter proves HTTP artifact delivery and WebSocket reconciliation, RPC, cancellation, Event, and connection-replacement behavior without owning plugin state.
