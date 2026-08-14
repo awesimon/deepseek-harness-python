@@ -11,7 +11,7 @@ Phase 1 establishes the PyCordis lifecycle kernel required by every backend capa
 | Phase | Specification | State | Evidence | Next action |
 |---|---|---|---|---|
 | 1. PyCordis kernel | [Cordis core](specs/cordis-core.md) | Complete | 15 lifecycle and event tests; `compileall` | Preserve behavior through conformance tests as later runtimes integrate it |
-| 2. Backend Agent spine | Required before implementation | Not started | None | Define the Session Log, projection, LLM, Tool, prompt, Turn, and Step contracts |
+| 2. Backend Agent spine | [Agent Spine](specs/agent-spine.md) | Specified | Normative lifecycle, logging, registry, routing, and failure requirements | Implement immutable values and the Session Log first |
 | 3. Dynamic Plugin Manager | Required before implementation | Not started | None | Define manifests, discovery, validation, revisions, activation coordination, and aggregate status |
 | 4. Browser bridge | Required before implementation | Not started | None | Define protocol versioning, RPC, event forwarding, client graphs, and reconciliation |
 
