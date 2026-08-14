@@ -12,7 +12,7 @@ Phase 2 establishes the durable Agent Spine on PyCordis. Session projection, sco
 |---|---|---|---|---|
 | 1. PyCordis kernel | [Cordis core](specs/cordis-core.md) | Complete | 15 focused lifecycle and Event tests | Preserve behavior through conformance tests as later runtimes integrate it |
 | 2. Backend Agent spine | [Agent Spine](specs/agent-spine.md) | Complete | 14 Agent tests within the 29-test suite; Ruff and strict Pyright | Preserve the Event Log authority when persistent storage is added |
-| 3. Dynamic Plugin Manager | Required before implementation | Not started | None | Write the manifest, discovery, revision, activation, and aggregate-status specification |
+| 3. Dynamic Plugin Manager | [Plugin Manager](specs/plugin-manager.md) | Specified | Manifest, revision, lifecycle, rollback, and trusted-host requirements | Implement manifest validation and immutable revision building first |
 | 4. Browser bridge | Required before implementation | Not started | None | Define protocol versioning, RPC, event forwarding, client graphs, and reconciliation |
 
 ## Phase 1 delivered behavior
