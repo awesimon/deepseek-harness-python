@@ -24,7 +24,7 @@ def _collect_cleanups(result: CleanupResult) -> list[Cleanup]:
         return []
     if callable(result):
         return [result]
-    if not isinstance(result, Iterable):
+    if not isinstance(result, Iterable):  # pyright: ignore[reportUnnecessaryIsInstance]
         raise InvalidEffectError(f"unsupported effect result: {type(result).__name__}")
     cleanups = list(result)
     if any(not callable(cleanup) for cleanup in cleanups):
@@ -62,7 +62,7 @@ class EffectHandle:
         for cleanup in reversed(self._cleanups):
             try:
                 await _await_if_needed(cleanup())
-            except BaseException as error:  # cleanup must continue after cancellation or failure
+            except BaseException as error:  # noqa: BLE001 -- all cleanup attempts must run
                 errors.append(error)
         self._cleanups.clear()
         if errors:

@@ -7,7 +7,7 @@ import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from .errors import InvalidEventModeError
 
@@ -25,7 +25,7 @@ class EventMode(str, Enum):
 
 
 @dataclass(frozen=True, slots=True)
-class EventKey(Generic[ResultT]):
+class EventKey[ResultT]:
     """Stable event name paired with its only legal dispatch mode."""
 
     name: str

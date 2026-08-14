@@ -1,5 +1,8 @@
 """Dependency-driven PyCordis service and fiber runtime."""
 
+# Context and Cordis are one internal collaborator pair despite separate classes.
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 import asyncio
@@ -291,7 +294,7 @@ class Cordis:
         await self._after_mutation()
         try:
             await self._root.effects.close()
-        except BaseException as error:
+        except BaseException as error:  # noqa: BLE001 -- close records cleanup failures
             self._root.cleanup_errors.append(error)
         self._closed = True
 
@@ -398,7 +401,7 @@ class Cordis:
             if inspect.isawaitable(result):
                 result = await result
             fiber.effects.add_result(cast(CleanupResult, result), f"plugin:{fiber.name}")
-        except BaseException as error:
+        except BaseException as error:  # noqa: BLE001 -- activation failure owns rollback
             fiber.error = error
             fiber.epoch = epoch
             for child in tuple(fiber.children):
@@ -419,7 +422,7 @@ class Cordis:
     async def _close_effects(self, fiber: Fiber) -> None:
         try:
             await fiber.effects.close()
-        except BaseException as error:
+        except BaseException as error:  # noqa: BLE001 -- lifecycle retains cleanup diagnostics
             fiber.cleanup_errors.append(error)
 
     def _dependency_epoch(self, fiber: Fiber) -> tuple[int, ...] | None:
@@ -458,13 +461,17 @@ class Cordis:
         registration = self._services.get((key, context.realm(key)))
         if registration is None:
             return None
-        if include_self and registration.provider is context.fiber:
-            if context.fiber.state in (
+        if (
+            include_self
+            and registration.provider is context.fiber
+            and context.fiber.state
+            in (
                 FiberState.LOADING,
                 FiberState.ACTIVE,
                 FiberState.UNLOADING,
-            ):
-                return registration
+            )
+        ):
+            return registration
         if registration.provider.state is FiberState.ACTIVE and registration.provider.desired:
             return registration
         return None

@@ -8,7 +8,7 @@ The implementation starts with the lifecycle kernel because every later capabili
 
 ## Status
 
-Phase 1 is complete:
+Phases 1 and 2 are complete:
 
 - architecture and migration specification;
 - TypeScript source-mechanism index;
@@ -16,8 +16,12 @@ Phase 1 is complete:
 - reversible effects;
 - typed event keys and waterfall dispatch;
 - service isolation realms.
+- append-only Session Events and deterministic projections;
+- scoped Prompt and Tool registries;
+- explicit LLM routing and stream enforcement;
+- a durable multi-Step Agent Loop with Tool execution.
 
-Later phases add the session log, LLM and tool services, the agent loop, the browser bridge, and installable multi-face plugins. See [implementation progress](docs/progress.md) for current evidence and the next milestone.
+Later phases add dynamic plugin management, backend revision workers, the browser bridge, and installable multi-face plugins. See [implementation progress](docs/progress.md) for current evidence and the next milestone.
 
 ## Layout
 
@@ -31,5 +35,5 @@ tests/               Standard-library unit tests
 ## Test
 
 ```sh
-PYTHONPATH=src python3 -m unittest discover -s tests
+uv run python -m unittest discover -s tests
 ```

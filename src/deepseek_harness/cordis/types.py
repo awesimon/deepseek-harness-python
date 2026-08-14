@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 if TYPE_CHECKING:
     from .runtime import Context
@@ -22,7 +22,7 @@ type PluginApply[ConfigT] = Callable[
 
 
 @dataclass(frozen=True, slots=True)
-class ServiceKey(Generic[ServiceT]):
+class ServiceKey[ServiceT]:
     """Stable name-based identity for one service API.
 
     @param name: Globally stable service name.
@@ -41,7 +41,7 @@ class ServiceKey(Generic[ServiceT]):
 
 
 @dataclass(frozen=True, slots=True)
-class PluginSpec(Generic[ConfigT]):
+class PluginSpec[ConfigT]:
     """One mountable plugin definition.
 
     @param name: Stable diagnostic plugin name.
