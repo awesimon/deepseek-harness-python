@@ -13,7 +13,7 @@ Phase 3 establishes trusted local dynamic plugin management. Backend-only, clien
 | 1. PyCordis kernel | [Cordis core](specs/cordis-core.md) | Complete | 15 focused lifecycle and Event tests | Preserve behavior through conformance tests as later runtimes integrate it |
 | 2. Backend Agent spine | [Agent Spine](specs/agent-spine.md) | Complete | 14 Agent tests within the 29-test suite; Ruff and strict Pyright | Preserve the Event Log authority when persistent storage is added |
 | 3. Dynamic Plugin Manager | [Plugin Manager](specs/plugin-manager.md) | Complete | 11 manifest and Manager tests within the 40-test suite; Ruff and strict Pyright | Replace the trusted in-process BackendHost before admitting third-party code |
-| 4. Browser bridge | Required before implementation | Not started | None | Write protocol versioning, RPC, event forwarding, client graph, and reconciliation specification |
+| 4. Browser bridge | [Browser Bridge](specs/browser-bridge.md) | Specified | Identity, reconciliation, bundle, RPC, Event, and failure requirements | Define normative JSON Schemas and Python protocol values first |
 
 ## Phase 1 delivered behavior
 
