@@ -7,8 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from deepseek_harness.cordis import Cordis, ServiceKey
-from deepseek_harness.plugins import ClientArtifactRegistry, PluginManager, PluginState
+from harness.cordis import Cordis, ServiceKey
+from harness.plugins import ClientArtifactRegistry, PluginManager, PluginState
 
 DYNAMIC_VALUE = ServiceKey[str]("tests.dynamic-value")
 
@@ -17,7 +17,7 @@ def backend_source(value: str, *, fail: bool = False) -> str:
     """Return one standalone backend plugin module."""
     body = 'raise RuntimeError("backend failed")' if fail else f'await ctx.provide(KEY, "{value}")'
     return (
-        "from deepseek_harness.cordis import PluginSpec, ServiceKey\n"
+        "from harness.cordis import PluginSpec, ServiceKey\n"
         'KEY = ServiceKey[str]("tests.dynamic-value")\n'
         "async def apply(ctx, _config):\n"
         f"    {body}\n"

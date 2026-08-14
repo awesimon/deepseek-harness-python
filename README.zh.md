@@ -31,7 +31,7 @@ DeepSeek Harness 的 Python 后端运行时。浏览器继续使用 TypeScript C
 ```text
 docs/specs/          Normative design and phased implementation plan
 docs/source-notes/   Stable summaries of the TypeScript reference behavior
-src/deepseek_harness Python packages
+src/harness          Python packages
 tests/               Standard-library unit tests
 ```
 

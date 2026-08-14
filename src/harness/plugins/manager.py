@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
 
-from deepseek_harness.cordis import Context
+from harness.cordis import Context
 
 from .manifest import ActivationPolicy
 from .revision import PluginRevision, build_revision

@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from dataclasses import replace
 
-from deepseek_harness.agent import (
+from harness.agent import (
     AGENT_LOOP,
     AGENT_POST_STEP,
     AGENT_PRE_STEP,
@@ -33,7 +33,7 @@ from deepseek_harness.agent import (
     ToolExecutionCompleted,
     agent_spine_plugin,
 )
-from deepseek_harness.cordis import Cordis, FiberState, PluginSpec
+from harness.cordis import Cordis, FiberState, PluginSpec
 
 OBJECT_SCHEMA = {
     "type": "object",

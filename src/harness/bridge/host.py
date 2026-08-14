@@ -8,8 +8,8 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from deepseek_harness.agent.values import JsonValue, freeze_json
-from deepseek_harness.plugins import ClientArtifactRegistry
+from harness.agent.values import JsonValue, freeze_json
+from harness.plugins import ClientArtifactRegistry
 
 from .protocol import (
     PROTOCOL_VERSION,

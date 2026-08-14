@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from deepseek_harness.cordis import Context, PluginSpec, ServiceKey
+from harness.cordis import Context, PluginSpec, ServiceKey
 
 from .llm import LLMRegistry
 from .loop import AgentLoop

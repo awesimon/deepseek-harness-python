@@ -31,7 +31,7 @@ Later phases add process-backed plugin isolation, browser delivery and reconcili
 ```text
 docs/specs/          Normative design and phased implementation plan
 docs/source-notes/   Stable summaries of the TypeScript reference behavior
-src/deepseek_harness Python packages
+src/harness          Python packages
 tests/               Standard-library unit tests
 ```
 

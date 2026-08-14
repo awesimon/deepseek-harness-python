@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from types import MappingProxyType, ModuleType
 from typing import Protocol, cast
 
-from deepseek_harness.cordis import Context, Fiber, FiberState, PluginSpec
+from harness.cordis import Context, Fiber, FiberState, PluginSpec
 
 from .revision import PluginRevision
 

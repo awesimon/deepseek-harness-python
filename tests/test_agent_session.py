@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from typing import Any, cast
 
-from deepseek_harness.agent import (
+from harness.agent import (
     AssistantMessageCommitted,
     Message,
     ModelChunk,

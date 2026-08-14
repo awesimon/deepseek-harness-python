@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from deepseek_harness.cordis import Context, PluginSpec, ServiceKey
+from harness.cordis import Context, PluginSpec, ServiceKey
 
 from .manager import PluginManager
 from .runtime import ClientArtifactRegistry

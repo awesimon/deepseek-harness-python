@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from jsonschema import ValidationError
 
-from deepseek_harness.cordis import Context, EventKey, EventMode
+from harness.cordis import Context, EventKey, EventMode
 
 from .llm import LLMAdapterProtocolError, LLMRegistry, collect_adapter_response
 from .registries import PromptRegistry, Tool, ToolRegistry

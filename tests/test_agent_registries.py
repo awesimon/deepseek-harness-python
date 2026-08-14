@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from deepseek_harness.agent import (
+from harness.agent import (
     AgentScope,
     DuplicateContributionError,
     LayeredRegistry,
@@ -17,7 +17,7 @@ from deepseek_harness.agent import (
     StepId,
     TurnId,
 )
-from deepseek_harness.agent.llm import collect_adapter_response
+from harness.agent.llm import collect_adapter_response
 
 
 class AgentRegistryTests(unittest.IsolatedAsyncioTestCase):

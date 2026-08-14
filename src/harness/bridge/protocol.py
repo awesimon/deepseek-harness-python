@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 
-from deepseek_harness.agent.values import JsonValue, freeze_json, freeze_json_object
+from harness.agent.values import JsonValue, freeze_json, freeze_json_object
 
 PROTOCOL_VERSION = "1"
 

@@ -10,6 +10,7 @@ Phase 3 establishes trusted local dynamic plugin management. Backend-only, clien
 
 | Phase | Specification | State | Evidence | Next action |
 |---|---|---|---|---|
+| Foundation. Python package layout | [Package Layout](specs/package-layout.md) | Complete | 1 package-layout test within the 45-test suite; editable and wheel import smokes | Keep distribution metadata separate from the `harness` import namespace |
 | 1. PyCordis kernel | [Cordis core](specs/cordis-core.md) | Complete | 15 focused lifecycle and Event tests | Preserve behavior through conformance tests as later runtimes integrate it |
 | 2. Backend Agent spine | [Agent Spine](specs/agent-spine.md) | Complete | 14 Agent tests within the 29-test suite; Ruff and strict Pyright | Preserve the Event Log authority when persistent storage is added |
 | 3. Dynamic Plugin Manager | [Plugin Manager](specs/plugin-manager.md) | Complete | 11 manifest and Manager tests within the 40-test suite; Ruff and strict Pyright | Replace the trusted in-process BackendHost before admitting third-party code |

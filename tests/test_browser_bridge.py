@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from deepseek_harness.bridge import (
+from harness.bridge import (
     PROTOCOL_VERSION,
     BridgeRpcRegistry,
     BrowserBridge,
@@ -14,7 +14,7 @@ from deepseek_harness.bridge import (
     RpcCall,
     StaleBridgeMessageError,
 )
-from deepseek_harness.plugins import ClientArtifactRegistry
+from harness.plugins import ClientArtifactRegistry
 
 
 class BrowserBridgeTests(unittest.IsolatedAsyncioTestCase):

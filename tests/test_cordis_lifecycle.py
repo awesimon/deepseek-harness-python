@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from deepseek_harness.cordis import (
+from harness.cordis import (
     Cordis,
     DuplicateServiceError,
     FiberState,

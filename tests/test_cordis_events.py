@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from deepseek_harness.cordis import Cordis, EventKey, EventMode, InvalidEventModeError
+from harness.cordis import Cordis, EventKey, EventMode, InvalidEventModeError
 
 
 class CordisEventTests(unittest.IsolatedAsyncioTestCase):

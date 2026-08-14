@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from deepseek_harness.plugins import ManifestError, build_revision, load_manifest
+from harness.plugins import ManifestError, build_revision, load_manifest
 
 
 class PluginManifestTests(unittest.TestCase):
