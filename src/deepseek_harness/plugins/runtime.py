@@ -5,10 +5,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
-from types import ModuleType
+from types import MappingProxyType, ModuleType
 from typing import Protocol, cast
 
 from deepseek_harness.cordis import Context, Fiber, FiberState, PluginSpec
@@ -136,6 +138,16 @@ class ClientArtifactRegistry:
         """Return the published revision without implying browser activation."""
         publication = self._current.get(plugin_id)
         return None if publication is None else publication.revision
+
+    def snapshot(self) -> Mapping[str, str]:
+        """Return current Plugin ID to Revision publication state."""
+        return MappingProxyType(
+            {plugin_id: self._current[plugin_id].revision for plugin_id in sorted(self._current)}
+        )
+
+    def bundle_digest(self, plugin_id: str, revision: str) -> str:
+        """Return the SHA-256 digest of exact published bundle bytes."""
+        return hashlib.sha256(self.get(plugin_id, revision)).hexdigest()
 
     def get(self, plugin_id: str, revision: str) -> bytes:
         """Return exact immutable bundle bytes for one published revision."""

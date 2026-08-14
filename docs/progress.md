@@ -13,7 +13,7 @@ Phase 3 establishes trusted local dynamic plugin management. Backend-only, clien
 | 1. PyCordis kernel | [Cordis core](specs/cordis-core.md) | Complete | 15 focused lifecycle and Event tests | Preserve behavior through conformance tests as later runtimes integrate it |
 | 2. Backend Agent spine | [Agent Spine](specs/agent-spine.md) | Complete | 14 Agent tests within the 29-test suite; Ruff and strict Pyright | Preserve the Event Log authority when persistent storage is added |
 | 3. Dynamic Plugin Manager | [Plugin Manager](specs/plugin-manager.md) | Complete | 11 manifest and Manager tests within the 40-test suite; Ruff and strict Pyright | Replace the trusted in-process BackendHost before admitting third-party code |
-| 4. Browser bridge | [Browser Bridge](specs/browser-bridge.md) | Specified | Identity, reconciliation, bundle, RPC, Event, and failure requirements | Define normative JSON Schemas and Python protocol values first |
+| 4. Browser bridge | [Browser Bridge](specs/browser-bridge.md) | In progress | Host reconciliation, exact bundle retrieval, page-local state, and cancellable RPC tests | Add normative JSON Schemas, then the Cordis TS Client Adapter |
 
 ## Phase 1 delivered behavior
 
@@ -67,3 +67,11 @@ uv run python -m compileall -q src tests
 - `InProcessBackendHost` executes trusted local Python code. It removes module lookup entries and disposes Fibers, but cannot guarantee code eviction; third-party plugins require a process-backed Host.
 - Installed inventory and Session Events are in memory only.
 - Client publication is process-local bytes. No browser receives or activates a bundle until Phase 4 supplies the bridge.
+
+## Phase 4 progress
+
+- Implemented immutable protocol values for desired client revisions, reconciliation results, and RPC calls/results.
+- Implemented full-graph reconciliation with superseded Operation rejection and page-local state.
+- Implemented exact current-revision bundle retrieval.
+- Implemented Effect-compatible same-Plugin/Revision RPC handlers, structured failures, cancellation, and disconnect cleanup.
+- Pending: normative JSON Schema files and validation, Event forwarding, HTTP/WebSocket transport, Cordis TS loading adapter, and the full-stack cross-language scenario.
