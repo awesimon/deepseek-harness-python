@@ -8,7 +8,7 @@ The implementation starts with the lifecycle kernel because every later capabili
 
 ## Status
 
-Phases 1 and 2 are complete:
+Phases 1 through 3 are complete:
 
 - architecture and migration specification;
 - TypeScript source-mechanism index;
@@ -20,8 +20,11 @@ Phases 1 and 2 are complete:
 - scoped Prompt and Tool registries;
 - explicit LLM routing and stream enforcement;
 - a durable multi-Step Agent Loop with Tool execution.
+- strict root plugin manifests and content-addressed revisions;
+- runtime backend enable, disable, update, and rollback;
+- immutable client bundle publication for the browser bridge.
 
-Later phases add dynamic plugin management, backend revision workers, the browser bridge, and installable multi-face plugins. See [implementation progress](docs/progress.md) for current evidence and the next milestone.
+Later phases add process-backed plugin isolation, browser delivery and reconciliation, and installable multi-face examples. See [implementation progress](docs/progress.md) for current evidence and the next milestone.
 
 ## Layout
 

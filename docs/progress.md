@@ -4,7 +4,7 @@ This document records implementation state and verification evidence. Each phase
 
 ## Current milestone
 
-Phase 2 establishes the durable Agent Spine on PyCordis. Session projection, scoped Prompt and Tool contributions, explicit LLM routing, and the multi-Step Tool loop are implemented and verified without API credentials.
+Phase 3 establishes trusted local dynamic plugin management. Backend-only, client-only, and full-stack artifacts can be installed, enabled, disabled, updated, rolled back, and inspected while the process is running.
 
 ## Phase status
 
@@ -12,8 +12,8 @@ Phase 2 establishes the durable Agent Spine on PyCordis. Session projection, sco
 |---|---|---|---|---|
 | 1. PyCordis kernel | [Cordis core](specs/cordis-core.md) | Complete | 15 focused lifecycle and Event tests | Preserve behavior through conformance tests as later runtimes integrate it |
 | 2. Backend Agent spine | [Agent Spine](specs/agent-spine.md) | Complete | 14 Agent tests within the 29-test suite; Ruff and strict Pyright | Preserve the Event Log authority when persistent storage is added |
-| 3. Dynamic Plugin Manager | [Plugin Manager](specs/plugin-manager.md) | Specified | Manifest, revision, lifecycle, rollback, and trusted-host requirements | Implement manifest validation and immutable revision building first |
-| 4. Browser bridge | Required before implementation | Not started | None | Define protocol versioning, RPC, event forwarding, client graphs, and reconciliation |
+| 3. Dynamic Plugin Manager | [Plugin Manager](specs/plugin-manager.md) | Complete | 11 manifest and Manager tests within the 40-test suite; Ruff and strict Pyright | Replace the trusted in-process BackendHost before admitting third-party code |
+| 4. Browser bridge | Required before implementation | Not started | None | Write protocol versioning, RPC, event forwarding, client graph, and reconciliation specification |
 
 ## Phase 1 delivered behavior
 
@@ -36,6 +36,16 @@ Phase 2 establishes the durable Agent Spine on PyCordis. Session projection, sco
 - Step capability snapshots that remain stable while plugin registrations change.
 - Agent and Tool Waterfall/Parallel extension Events.
 
+## Phase 3 delivered behavior
+
+- Strict TOML manifests for backend-only, client-only, and full-stack plugins.
+- Contained artifact resolution that rejects absolute paths, traversal, and escaping symlinks.
+- SHA-256 revisions over manifest, backend, client, and protocol bytes.
+- Revision-qualified trusted Python modules mounted as child PyCordis Fibers.
+- Immutable client bundle publication without claiming browser activation.
+- Serialized install, enable, disable, update, rollback, uninstall, and inventory snapshots.
+- Required-contribution rollback and optional-contribution degraded state.
+
 ## Verification commands
 
 ```sh
@@ -51,3 +61,9 @@ uv run python -m compileall -q src tests
 - Backend plugin worker granularity and restart policy.
 - Wire IDL and Python/TypeScript binding generator.
 - Multi-page browser activation and reconciliation policy.
+
+## Current limitations
+
+- `InProcessBackendHost` executes trusted local Python code. It removes module lookup entries and disposes Fibers, but cannot guarantee code eviction; third-party plugins require a process-backed Host.
+- Installed inventory and Session Events are in memory only.
+- Client publication is process-local bytes. No browser receives or activates a bundle until Phase 4 supplies the bridge.

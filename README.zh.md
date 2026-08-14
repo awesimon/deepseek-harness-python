@@ -8,7 +8,7 @@ DeepSeek Harness 的 Python 后端运行时。浏览器继续使用 TypeScript C
 
 ## 状态
 
-第一和第二阶段已经完成：
+第一至第三阶段已经完成：
 
 - 架构和迁移规范；
 - TypeScript 源码机制索引；
@@ -20,8 +20,11 @@ DeepSeek Harness 的 Python 后端运行时。浏览器继续使用 TypeScript C
 - 有 Scope 的 Prompt 和 Tool Registry；
 - 显式 LLM 路由和 Stream 约束；
 - 支持 Tool Execution 的持久化多 Step Agent Loop。
+- 严格根插件 Manifest 和内容寻址 Revision；
+- 运行时 Backend Enable、Disable、Update 和 Rollback；
+- 面向浏览器桥接的不可变 Client Bundle 发布。
 
-后续阶段将增加动态插件管理、后端 Revision Worker、浏览器桥接和可安装的多端插件。当前验证证据和下一里程碑见[实现进度](docs/progress.md)。
+后续阶段将增加进程型插件隔离、浏览器交付与协调，以及可安装的多端示例。当前验证证据和下一里程碑见[实现进度](docs/progress.md)。
 
 ## 目录
 
