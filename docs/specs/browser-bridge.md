@@ -22,7 +22,7 @@ The Plugin Manager remains the process-wide authority for installed plugins and 
 
 Every frame is a JSON object containing `protocol: "1"` and a discriminant `type`. Unknown protocol versions close the logical connection with an explicit incompatibility error. Unknown frame types under a supported protocol fail that frame and do not mutate page state.
 
-The normative JSON Schema and shared fixtures live under `harness/protocol/`. Python validates every frame against the Schema, and TypeScript consumes the same server-frame fixtures so handwritten protocol types cannot drift independently.
+The normative JSON Schema and shared fixtures live under `python/harness/protocol/`. Python validates every frame against the Schema, and TypeScript consumes the same server-frame fixtures so handwritten protocol types cannot drift independently.
 
 ## Connection and reconciliation
 

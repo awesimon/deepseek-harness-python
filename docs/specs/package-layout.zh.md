@@ -6,16 +6,16 @@
 
 - Python 发行名是 `deepseek-harness-python`。
 - 导入根包是 `harness`。
-- 项目 Python 源码位于仓库根目录 `harness/`。
+- 项目 Python 源码位于 `python/harness/`。
 - 公共模块使用 `harness.cordis`、`harness.agent`、`harness.plugins` 和 `harness.bridge` 命名空间。
 
-发行元数据和 Python 导入面向不同使用方，因此发行名不决定导入根包。打包发现机制只包含仓库根目录的 `harness` 及其子包。
+发行元数据和 Python 导入面向不同使用方，因此发行名不决定导入根包。打包发现机制只包含 `python/` Project 内的 `harness` 及其子包。
 
 ## 导入行为
 
 所有项目导入和生成的后端插件 Fixture 都必须使用 `harness`。本项目尚未发布，也没有外部兼容承诺，因此不提供 `deepseek_harness` 兼容模块。
 
-从本仓库同步的环境必须将 `import harness` 解析到 `harness/__init__.py`。导入 `deepseek_harness` 必须抛出 `ModuleNotFoundError`。
+从本仓库同步的环境必须将 `import harness` 解析到 `python/harness/__init__.py`。导入 `deepseek_harness` 必须抛出 `ModuleNotFoundError`。
 
 ## 失败处理
 

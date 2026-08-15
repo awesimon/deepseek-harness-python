@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This directory is the Python rewrite of DeepSeek Harness. It is an independent project kept inside the TypeScript repository during development.
+This repository is the Python rewrite of DeepSeek Harness. Its `frontend/` and `python/` workspaces are siblings, matching the top-level organization of the TypeScript project.
 
 ## Source-reading discipline
 
@@ -33,7 +33,7 @@ Do not repeatedly scan the original repository to regain context already capture
 ## Commands
 
 ```sh
-python3 -m unittest discover -s tests
+uv --directory python run python -m unittest discover -s tests
 ```
 
 Use the standard library in the Cordis kernel unless a maintained dependency removes substantial owned lifecycle or validation code.

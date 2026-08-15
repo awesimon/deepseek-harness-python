@@ -183,7 +183,7 @@ class PluginScaffoldTests(unittest.TestCase):
 
     def test_generated_frontends_typecheck_test_build_and_validate(self) -> None:
         """Client templates consume the workspace SDK as downstream projects."""
-        project = Path(__file__).resolve().parents[1]
+        project = Path(__file__).resolve().parents[2]
         frontend = project / "frontend"
         subprocess.run(
             ["pnpm", "--dir", "frontend", "run", "build:library"],

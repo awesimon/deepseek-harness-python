@@ -10,7 +10,7 @@ The existing [Cordis Core](cordis-core.md), [Agent Spine](agent-spine.md), [Plug
 
 ## Repository layout
 
-The import package lives at `harness/` in the repository root. Setuptools discovers only `harness` and its subpackages from that root. Tests, Pyright, Ruff, bytecode compilation, editable installs, source distributions, and wheels use the same location without `PYTHONPATH` overrides.
+The import package lives at `python/harness/`. Setuptools discovers only `harness` and its subpackages from the `python/` project. Tests, Pyright, Ruff, bytecode compilation, editable installs, source distributions, and wheels use the same location without `PYTHONPATH` overrides.
 
 The distribution remains `deepseek-harness-python`; the supported import root remains `harness`. No `src/` package tree or `deepseek_harness` compatibility package exists.
 
@@ -18,7 +18,7 @@ The browser runtime adapter lives under `frontend/`. It is harness infrastructur
 
 ## Protocol authority
 
-Version 1 Browser Bridge frames are defined by a bundled JSON Schema under `harness/protocol/`. Every frame contains `protocol` and `type`, rejects unknown fields, and uses JSON-compatible values only. Python decoding validates before constructing immutable protocol values; Python encoding validates the emitted object. TypeScript protocol types and tests are mechanically checked against the same field definitions and shared fixtures.
+Version 1 Browser Bridge frames are defined by a bundled JSON Schema under `python/harness/protocol/`. Every frame contains `protocol` and `type`, rejects unknown fields, and uses JSON-compatible values only. Python decoding validates before constructing immutable protocol values; Python encoding validates the emitted object. TypeScript protocol types and tests are mechanically checked against the same field definitions and shared fixtures.
 
 Supported frames cover hello, full-graph reconciliation, per-plugin results, operation completion, RPC calls/results/cancellation, and explicitly named Events. Unsupported versions terminate the logical connection. Invalid frames fail without changing page or plugin state.
 
@@ -58,7 +58,7 @@ The keyless scenario installs and enables one full-stack plugin, establishes a p
 
 ## Acceptance criteria
 
-- The repository imports, type-checks, tests, builds, and installs `harness/` directly from the root.
+- The repository imports, type-checks, tests, builds, and installs the `python/` project directly from the root commands.
 - Python Schema tests accept every supported frame and reject unknown fields, versions, discriminants, and invalid success/error combinations.
 - Event tests prove same-Plugin/Revision authorization, targeted and broadcast delivery, ordering, disposal, and disconnect cleanup.
 - HTTP/WebSocket tests prove exact artifact delivery, automatic reconciliation, frame routing, connection replacement, and cancellation.

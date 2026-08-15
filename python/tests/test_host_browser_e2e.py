@@ -125,7 +125,7 @@ class HostBrowserEndToEndTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """Build the browser entrypoint consumed by the Host."""
-        cls.project = Path(__file__).resolve().parents[1]
+        cls.project = Path(__file__).resolve().parents[2]
         subprocess.run(
             ["pnpm", "--dir", "frontend", "run", "build:browser"],
             cwd=cls.project,

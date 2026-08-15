@@ -80,12 +80,12 @@ Production Factory 从不接受 Plugin ID 或 Revision。`harness.sdk.testing` �
 使用 Scaffolder 创建完整的 Backend-Only、Client-Only 或 Full-Stack Project：
 
 ```sh
-uv run deepseek-harness-plugin create \
+uv --directory python run deepseek-harness-plugin create \
   --kind full-stack \
   --plugin-id com.example.echo \
   --destination plugins/echo
 
-uv run deepseek-harness-plugin validate plugins/echo
+uv --directory python run deepseek-harness-plugin validate plugins/echo
 ```
 
 `python -m harness.scaffold` 与该命令等价。生成过程确定、拒绝任何已存在的目标，并且不会安装依赖。Client Template 会固定 TypeScript SDK Package；该 Package 发布前，仓库开发通过 Template Acceptance Test 所示方式链接 Workspace Package。
@@ -93,14 +93,17 @@ uv run deepseek-harness-plugin validate plugins/echo
 ## 仓库布局
 
 ```text
-harness/
 frontend/
+python/
+  harness/
+  tests/
+  pyproject.toml
+  uv.lock
 docs/specs/
 docs/source-notes/
-tests/
 ```
 
-Distribution Name 是 `deepseek-harness-python`，唯一支持的 Import Root 是 `harness`。仓库不包含 `src/` 目录或 `deepseek_harness` 兼容包。
+Distribution Name 是 `deepseek-harness-python`，唯一支持的 Import Root 是 `python/` Workspace 内的 `harness`。仓库不包含 `src/` 目录或 `deepseek_harness` 兼容包。
 
 ## 已实现基础
 
@@ -125,7 +128,7 @@ Distribution Name 是 `deepseek-harness-python`，唯一支持的 Import Root �
 ```sh
 pnpm --dir frontend install
 pnpm --dir frontend run build:browser
-uv run deepseek-harness-python \
+uv --directory python run deepseek-harness-python \
   --port 0 \
   --plugins ./plugins \
   --client-quorum all_connected \
@@ -133,18 +136,18 @@ uv run deepseek-harness-python \
   --browser-runtime frontend/dist/browser.js
 ```
 
-命令会输出实际 URL。`--plugins` 可以重复传入，`python -m harness` 接受相同参数。Backend-Only Host 可以省略 `--browser-runtime`，此时不会提供 Bootstrap Route。
+命令会输出实际 URL。`--plugins` 可以重复传入，`uv --directory python run python -m harness` 接受相同参数。Backend-Only Host 可以省略 `--browser-runtime`，此时不会提供 Bootstrap Route。
 
 要启用内置 DeepSeek-Compatible Route，通过环境变量提供凭据，并配置精确的 Provider/Model Pair：
 
 ```sh
 export DEEPSEEK_API_KEY='...'
-uv run deepseek-harness-python \
+uv --directory python run deepseek-harness-python \
   --llm-provider deepseek \
   --llm-model deepseek-chat \
   --port 8765
 
-uv run deepseek-harness-python invoke \
+uv --directory python run deepseek-harness-python invoke \
   --url http://127.0.0.1:8765 \
   'Reply with one short sentence.'
 ```
@@ -154,16 +157,16 @@ Provider 在内部消费 SSE，因此 Raw Chunk 会保留在 Session Log 中，�
 需要在线执行生命周期操作时，启用 loopback Plugin Control API。该 API 默认关闭，并且拒绝非 loopback Listener：
 
 ```sh
-uv run deepseek-harness-python --control --plugins ./plugins --port 8765
-uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 list
-uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 enable com.example.echo
-uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 update com.example.echo
+uv --directory python run deepseek-harness-python --control --plugins ./plugins --port 8765
+uv --directory python run deepseek-harness-python plugin --url http://127.0.0.1:8765 list
+uv --directory python run deepseek-harness-python plugin --url http://127.0.0.1:8765 enable com.example.echo
+uv --directory python run deepseek-harness-python plugin --url http://127.0.0.1:8765 update com.example.echo
 ```
 
 Catalog Watching 是可选的，并且与 HTTP Operation 共用同一个串行 Lifecycle Coordinator。Watcher 可以安装新 Root、热更新有效 Revision，并使用明确的 Create/Delete Policy：
 
 ```sh
-uv run deepseek-harness-python \
+uv --directory python run deepseek-harness-python \
   --control \
   --plugins ./plugins \
   --watch-plugins ./plugins \
@@ -172,16 +175,16 @@ uv run deepseek-harness-python \
   --watch-delete disable
 ```
 
-Control API 面向可信本地开发，不提供 Authentication、Package Download、Dependency Installation、Signature 或不受信任代码隔离。使用 `deepseek-harness-plugin sdk export PATH` 可以导出内置 Browser SDK Tarball；Client Scaffolding 会以相对 `file:` Dependency 和 Frozen Lockfile 固定使用该 Digest。
+Control API 面向可信本地开发，不提供 Authentication、Package Download、Dependency Installation、Signature 或不受信任代码隔离。使用 `uv --directory python run deepseek-harness-plugin sdk export PATH` 可以导出内置 Browser SDK Tarball；Client Scaffolding 会以相对 `file:` Dependency 和 Frozen Lockfile 固定使用该 Digest。
 
 ## 开发
 
 ```sh
-uv sync
-uv run playwright install chromium
-uv run python -m unittest discover -s tests -v
-uv run ruff check harness tests
-uv run pyright
+uv --directory python sync
+uv --directory python run playwright install chromium
+uv --directory python run python -m unittest discover -s tests -v
+uv --directory python run ruff check harness tests
+uv --directory python run pyright
 
 pnpm --dir frontend install
 pnpm --dir frontend run typecheck

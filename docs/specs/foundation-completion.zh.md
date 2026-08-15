@@ -10,7 +10,7 @@
 
 ## 仓库布局
 
-导入包位于仓库根目录 `harness/`。Setuptools 只从仓库根发现 `harness` 及其子包。测试、Pyright、Ruff、字节码编译、可编辑安装、源码发行包和 Wheel 使用同一位置，不依赖 `PYTHONPATH` 覆盖。
+导入包位于 `python/harness/`。Setuptools 只从 `python/` Project 发现 `harness` 及其子包。测试、Pyright、Ruff、字节码编译、可编辑安装、源码发行包和 Wheel 使用同一位置，不依赖 `PYTHONPATH` 覆盖。
 
 发行名保持 `deepseek-harness-python`，受支持的导入根保持 `harness`。仓库不包含 `src/` 包目录或 `deepseek_harness` 兼容包。
 
@@ -18,7 +18,7 @@
 
 ## 协议权威
 
-版本 1 Browser Bridge Frame 由 `harness/protocol/` 下随包发布的 JSON Schema 定义。每个 Frame 都包含 `protocol` 和 `type`，拒绝未知字段，并且只使用 JSON 兼容值。Python 解码在构造不可变协议值前完成校验，编码后也校验输出对象。TypeScript 协议类型和测试根据相同字段定义和共享 Fixture 做机械校验。
+版本 1 Browser Bridge Frame 由 `python/harness/protocol/` 下随包发布的 JSON Schema 定义。每个 Frame 都包含 `protocol` 和 `type`，拒绝未知字段，并且只使用 JSON 兼容值。Python 解码在构造不可变协议值前完成校验，编码后也校验输出对象。TypeScript 协议类型和测试根据相同字段定义和共享 Fixture 做机械校验。
 
 支持的 Frame 包括 Hello、完整图 Reconciliation、逐插件结果、Operation Completion、RPC Call/Result/Cancel 和显式命名 Event。不支持的版本终止逻辑连接。无效 Frame 失败时不得改变 Page 或 Plugin 状态。
 
@@ -58,7 +58,7 @@ Client Module 导出 Cordis Plugin 或 `createPlugin(api)`。Factory 接收绑�
 
 ## 验收标准
 
-- 仓库从根目录直接导入、类型检查、测试、构建和安装 `harness/`。
+- 仓库从根目录命令直接导入、类型检查、测试、构建和安装 `python/` Project。
 - Python Schema Test 接受所有受支持 Frame，并拒绝未知字段、Version、Discriminant 和无效 Success/Error 组合。
 - Event Test 验证同 Plugin/Revision 授权、定向与广播发送、顺序、Disposal 和 Disconnect Cleanup。
 - HTTP/WebSocket Test 验证精确 Artifact Delivery、自动 Reconciliation、Frame Routing、Connection Replacement 和 Cancellation。

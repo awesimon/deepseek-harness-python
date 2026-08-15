@@ -4,7 +4,7 @@ This document records implementation state and verification evidence. Each phase
 
 ## Current milestone
 
-Phases 1 through 9 complete the dual-Cordis lifecycle, plugin authoring foundation, and runnable Agent path. Phase 10 now owns the next milestone: a loopback Plugin Control Plane, catalog watching, and local browser SDK distribution.
+Phases 1 through 10 complete the dual-Cordis lifecycle, plugin authoring foundation, runnable Agent path, and local control plane. The current milestone aligns the repository layout with DeepSeek Harness while preserving those runtime contracts.
 
 ## Phase status
 
@@ -21,6 +21,7 @@ Phases 1 through 9 complete the dual-Cordis lifecycle, plugin authoring foundati
 | 8. Multi-Page Activation | [Multi-Page Activation](specs/multi-page-activation.md) | Complete | Pure aggregation, generation fencing, Manager/Host tests, and two-page Chromium evidence under both quorum modes | Add selectors or cross-Host readiness only under a new specification |
 | 9. Agent Runtime Assembly | [Agent Runtime Assembly](specs/agent-runtime-assembly.md) | Complete | DeepSeek-compatible fake-provider and optional real-API tests, FIFO/cancellation tests, real Host HTTP/CLI tests, and shutdown regression coverage | Add durable Sessions or other providers only under separate specifications |
 | 10. Plugin Control Plane | [Plugin Control Plane](specs/plugin-control-plane.md) | Complete | Loopback HTTP lifecycle API, optimistic concurrency, watchfiles hot updates, non-retrying CLI, bundled SDK export, isolated wheel scaffold/install/typecheck smoke | Specify durable inventory and remote distribution separately |
+| 11. Repository Layout Alignment | [Repository Layout](specs/repository-layout.md) | Complete | Root-level `frontend/` and `python/` sibling workspaces, explicit root commands, moved Python tests and package metadata, documentation pairing | Keep future workspaces at the repository root |
 
 ## Delivered foundation
 
@@ -54,12 +55,12 @@ Phases 1 through 9 complete the dual-Cordis lifecycle, plugin authoring foundati
 ## Verification commands
 
 ```sh
-uv lock --check
-uv run python -m unittest discover -s tests -v
-uv run ruff check harness tests
-uv run pyright
-uv run python -m compileall -q harness tests
-uv build
+uv --directory python lock --check
+uv --directory python run python -m unittest discover -s tests -v
+uv --directory python run ruff check harness tests
+uv --directory python run pyright
+uv --directory python run python -m compileall -q harness tests
+uv --directory python build
 
 pnpm --dir frontend run typecheck
 pnpm --dir frontend run test
@@ -70,7 +71,7 @@ Current automated count: 122 Python tests and 19 TypeScript tests, including thr
 
 ## Next milestone
 
-Durable Session storage, persistent plugin inventory, remote distribution and trust, and isolated backend execution remain later specified phases.
+Durable Session storage, persistent plugin inventory, remote distribution and trust, and isolated backend execution remain later specified phases. Future repository-level workspaces should remain siblings of `frontend/` and `python/`.
 
 ## Intentional exclusions
 

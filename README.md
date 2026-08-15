@@ -80,12 +80,12 @@ Production factories never accept Plugin ID or Revision. Test-only harnesses und
 Create a complete backend-only, client-only, or full-stack project with the scaffolder:
 
 ```sh
-uv run deepseek-harness-plugin create \
+uv --directory python run deepseek-harness-plugin create \
   --kind full-stack \
   --plugin-id com.example.echo \
   --destination plugins/echo
 
-uv run deepseek-harness-plugin validate plugins/echo
+uv --directory python run deepseek-harness-plugin validate plugins/echo
 ```
 
 `python -m harness.scaffold` is equivalent. Generation is deterministic, refuses every existing destination, and installs no dependencies. Client templates pin the TypeScript SDK package; until that package is published, repository development links the workspace package as shown by the template acceptance tests.
@@ -93,14 +93,17 @@ uv run deepseek-harness-plugin validate plugins/echo
 ## Repository layout
 
 ```text
-harness/
 frontend/
+python/
+  harness/
+  tests/
+  pyproject.toml
+  uv.lock
 docs/specs/
 docs/source-notes/
-tests/
 ```
 
-The distribution name is `deepseek-harness-python`; the only supported import root is `harness`. There is no `src/` tree or `deepseek_harness` compatibility package.
+The distribution name is `deepseek-harness-python`; the only supported import root is `harness` inside the `python/` workspace. There is no `src/` tree or `deepseek_harness` compatibility package.
 
 ## Implemented foundation
 
@@ -125,7 +128,7 @@ Build the browser runtime, then point the Host at one or more catalog directorie
 ```sh
 pnpm --dir frontend install
 pnpm --dir frontend run build:browser
-uv run deepseek-harness-python \
+uv --directory python run deepseek-harness-python \
   --port 0 \
   --plugins ./plugins \
   --client-quorum all_connected \
@@ -133,18 +136,18 @@ uv run deepseek-harness-python \
   --browser-runtime frontend/dist/browser.js
 ```
 
-The command prints the effective URL. `--plugins` is repeatable, and `python -m harness` accepts the same arguments. Omit `--browser-runtime` for a backend-only Host without the bootstrap routes.
+The command prints the effective URL. `--plugins` is repeatable, and `uv --directory python run python -m harness` accepts the same arguments. Omit `--browser-runtime` for a backend-only Host without the bootstrap routes.
 
 To activate the built-in DeepSeek-compatible route, provide the credential through the environment and configure an exact provider/model pair:
 
 ```sh
 export DEEPSEEK_API_KEY='...'
-uv run deepseek-harness-python \
+uv --directory python run deepseek-harness-python \
   --llm-provider deepseek \
   --llm-model deepseek-chat \
   --port 8765
 
-uv run deepseek-harness-python invoke \
+uv --directory python run deepseek-harness-python invoke \
   --url http://127.0.0.1:8765 \
   'Reply with one short sentence.'
 ```
@@ -154,16 +157,16 @@ The provider consumes SSE internally so raw chunks remain in the Session log, wh
 Enable the loopback Plugin Control API when you need live lifecycle operations. The API is disabled by default and refuses non-loopback listeners:
 
 ```sh
-uv run deepseek-harness-python --control --plugins ./plugins --port 8765
-uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 list
-uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 enable com.example.echo
-uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 update com.example.echo
+uv --directory python run deepseek-harness-python --control --plugins ./plugins --port 8765
+uv --directory python run deepseek-harness-python plugin --url http://127.0.0.1:8765 list
+uv --directory python run deepseek-harness-python plugin --url http://127.0.0.1:8765 enable com.example.echo
+uv --directory python run deepseek-harness-python plugin --url http://127.0.0.1:8765 update com.example.echo
 ```
 
 Catalog watching is opt-in and uses the same serialized lifecycle coordinator as HTTP operations. A watcher can install new roots, hot-update valid revisions, and apply explicit create/delete policies:
 
 ```sh
-uv run deepseek-harness-python \
+uv --directory python run deepseek-harness-python \
   --control \
   --plugins ./plugins \
   --watch-plugins ./plugins \
@@ -172,16 +175,16 @@ uv run deepseek-harness-python \
   --watch-delete disable
 ```
 
-The control API is intended for trusted local development. It has no authentication, package download, dependency installation, signatures, or untrusted-code isolation. Use `deepseek-harness-plugin sdk export PATH` to copy the bundled Browser SDK tarball; client scaffolds vendor that exact digest with a relative `file:` dependency and a frozen lockfile.
+The control API is intended for trusted local development. It has no authentication, package download, dependency installation, signatures, or untrusted-code isolation. Use `uv --directory python run deepseek-harness-plugin sdk export PATH` to copy the bundled Browser SDK tarball; client scaffolds vendor that exact digest with a relative `file:` dependency and a frozen lockfile.
 
 ## Development
 
 ```sh
-uv sync
-uv run playwright install chromium
-uv run python -m unittest discover -s tests -v
-uv run ruff check harness tests
-uv run pyright
+uv --directory python sync
+uv --directory python run playwright install chromium
+uv --directory python run python -m unittest discover -s tests -v
+uv --directory python run ruff check harness tests
+uv --directory python run pyright
 
 pnpm --dir frontend install
 pnpm --dir frontend run typecheck

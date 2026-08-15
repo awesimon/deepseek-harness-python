@@ -21,7 +21,7 @@ class GeneratedFullStackEndToEndTests(unittest.IsolatedAsyncioTestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.project = Path(__file__).resolve().parents[1]
+        cls.project = Path(__file__).resolve().parents[2]
         subprocess.run(
             ["pnpm", "--dir", "frontend", "run", "build"],
             cwd=cls.project,

@@ -22,7 +22,7 @@ Plugin Manager 继续保存 Installed Plugin 和 Published Client Revision 的�
 
 每个 Frame 都是包含 `protocol: "1"` 和 Discriminant `type` 的 JSON Object。未知 Protocol Version 会用显式不兼容错误关闭逻辑连接。受支持版本中的未知 Frame Type 只使该 Frame 失败，不会改变页面状态。
 
-规范 JSON Schema 和共享 Fixture 位于 `harness/protocol/`。Python 根据 Schema 校验每个 Frame，TypeScript 使用相同 Server Frame Fixture，避免手写协议类型独立漂移。
+规范 JSON Schema 和共享 Fixture 位于 `python/harness/protocol/`。Python 根据 Schema 校验每个 Frame，TypeScript 使用相同 Server Frame Fixture，避免手写协议类型独立漂移。
 
 ## 连接和协调
 
