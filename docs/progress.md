@@ -4,7 +4,7 @@ This document records implementation state and verification evidence. Each phase
 
 ## Current milestone
 
-Phase 5 is complete. The assembled Host now runs the Agent Spine, Dynamic Plugin Manager, Browser Bridge, plugin catalogs, and browser runtime under one lifecycle.
+Phase 6 defines the supported plugin author APIs over PyCordis and Cordis TS. Phase 7 templates depend on that API; Phase 8 multi-page readiness can proceed independently after its state model is implemented.
 
 ## Phase status
 
@@ -16,6 +16,9 @@ Phase 5 is complete. The assembled Host now runs the Agent Spine, Dynamic Plugin
 | 3. Dynamic Plugin Manager | [Plugin Manager](specs/plugin-manager.md) | Complete | 11 manifest and Manager tests plus the full-stack lifecycle | Replace the trusted in-process Host before admitting third-party code |
 | 4. Browser Bridge | [Browser Bridge](specs/browser-bridge.md) | Complete | 12 Python protocol/Bridge/transport tests, 7 TypeScript tests, and the full-stack lifecycle | Add multi-page activation aggregation only under its own specification |
 | 5. Host Assembly | [Host Assembly](specs/host-assembly.md) | Complete | 5 Host tests and a real Chromium update/disable scenario over HTTP/WebSocket | Specify the plugin SDK and authoring templates |
+| 6. Plugin Authoring SDK | [Plugin SDK](specs/plugin-sdk.md) | Specified | Normative Python, TypeScript, protocol-helper, and test-harness requirements | Implement the SDK before templates consume it |
+| 7. Plugin Templates | [Plugin Templates](specs/plugin-templates.md) | Specified | Normative layouts, CLI, deterministic generation, and downstream checks | Implement after Phase 6 public APIs stabilize |
+| 8. Multi-Page Activation | [Multi-Page Activation](specs/multi-page-activation.md) | Specified | Normative membership, quorum, readiness, diagnostics, and Chromium requirements | Implement independently of authoring tooling |
 
 ## Delivered foundation
 
@@ -53,7 +56,7 @@ Current automated count: 60 Python tests and 7 TypeScript tests.
 
 ## Next milestone
 
-The next phase will specify a plugin authoring SDK and templates for backend-only, client-only, and full-stack plugins. Multi-page client activation aggregation remains a separate later capability.
+Implement Phase 6 Plugin Authoring SDK and Phase 8 Multi-Page Activation as independent work streams. Begin Phase 7 only after the SDK exports and test harnesses pass their acceptance criteria.
 
 ## Intentional exclusions
 

@@ -102,49 +102,21 @@ Session Event Log 是模型历史的真源。模型可见的所有内容都必�
 - 插件 Manifest 声明文件系统、子进程、网络、Credential 和浏览器权限。
 - 不受信任的后端插件最终应在 Worker Process 中运行。PyCordis 卸载会移除注册项和资源，但不能从进程内存中抹除已经导入的 Python 代码。
 
-## 交付阶段
+## 能力顺序
 
-### 第一阶段：PyCordis 内核
+[实现进度](../progress.md)统一记录完成状态和验证证据。阶段顺序只描述各规范之间的依赖：
 
-- ServiceKey 和隔离 Realm；
-- PluginSpec 和依赖驱动的 Fiber 激活；
-- 可逆 Effect 和失败回滚；
-- 包括 Waterfall Middleware 在内的事件模式；
-- Provider 替换和依赖者重新激活；
-- 聚焦生命周期的测试。
+1. [PyCordis 内核](cordis-core.zh.md)建立 Service、Fiber、Effect 和 Event。
+2. [后端 Agent Spine](agent-spine.zh.md)建立持久化的模型可见状态和扩展 Registry。
+3. [Dynamic Plugin Manager](plugin-manager.zh.md)管理根 Manifest、Revision 和两端 Contribution Lifecycle。
+4. [Browser Bridge](browser-bridge.zh.md)把 Client Revision 投影到 Cordis TS，并传递显式 RPC 和 Event。
+5. [Host Assembly](host-assembly.zh.md)组合 Provider、Catalog、HTTP/WebSocket Transport 和进程 Teardown。
+6. [Plugin Authoring SDK](plugin-sdk.zh.md)提供两个生命周期 Runtime 上受支持的开发 API。
+7. [Plugin Templates and Scaffolding](plugin-templates.zh.md)依赖 SDK，并生成三种 Contribution Form。
+8. [Multi-Page Client Activation](multi-page-activation.zh.md)根据 Manager 和 Bridge State 推导部署 Readiness，不依赖开发工具。
 
-### 第二阶段：后端 Agent Spine
-
-- 不可变的 Message 和 Stream 类型；
-- 只追加 Session Log 和 Surface Projection；
-- LLM Adapter Registry；
-- 有 Scope 的 Prompt 和 Tool Registry；
-- 最小 Turn/Step Agent Loop；
-- 无密钥重放 Fixture。
-
-### 第三阶段：动态 Plugin Manager
-
-- 根插件 Manifest 和校验；
-- Python Entry Point 发现；
-- 安装、启用、禁用、更新和聚合状态；
-- 用于可靠代码替换的后端 Revision Worker；
-- 配置和权限归属。
-
-### 第四阶段：浏览器桥接
-
-- 版本化协议 Schema；
-- Python 和 TypeScript 代码生成；
-- RPC、取消、Event Forwarding 和不透明身份查找；
-- 带内容哈希的客户端依赖图和已连接浏览器协调；
-- 仅前端和全栈示例插件。
-
-### 第五阶段：产品能力
-
-- 持久化和 Session 查询；
-- 文件系统、子进程、沙箱、Terminal 和 LSP；
-- Compaction、Subagent、Job、Workflow、Skill、Settings 和 Credential；
-- Web 应用迁移和兼容层移除。
+Persistence、Filesystem、Subprocess、Sandbox、Terminal、LSP、Compaction、Subagent、Workflow、Skill、Settings 和 Credential 等产品能力各自需要后续规范，并继续作为这些基础之上的普通 Plugin。
 
 ## 验收里程碑
 
-当一个全栈示例插件可以在应用运行期间完成安装、增加后端工具、公开远程方法、注册浏览器结果视图、影响下一个 Agent Step，并在禁用时完整移除所有功能时，这套架构得到验证。
+当一个生成的 Full-Stack Plugin 可以在没有网络依赖的 Runtime Behavior 下完成构建，通过 Assembled Host 激活，交换 Typed RPC 和 Event，更新两端 Revision，并在 Disable 时完整移除所有 Contribution 时，Authoring Path 得到验证。

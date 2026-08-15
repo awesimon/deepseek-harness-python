@@ -102,49 +102,21 @@ The session event log is the source of model history. Anything visible to a mode
 - Plugin manifests declare filesystem, subprocess, network, credential, and browser permissions.
 - Untrusted backend plugins should eventually run in worker processes. PyCordis unload removes registrations and resources but cannot erase imported Python code from process memory.
 
-## Delivery phases
+## Capability order
 
-### Phase 1: PyCordis kernel
+[Implementation progress](../progress.md) owns completion state and verification evidence. The phase order records dependencies between the specifications:
 
-- service keys and isolation realms;
-- plugin specs and dependency-driven fiber activation;
-- reversible effects and failure rollback;
-- event modes including waterfall middleware;
-- provider replacement and dependent reactivation;
-- focused lifecycle tests.
+1. [PyCordis kernel](cordis-core.md) establishes Services, Fibers, Effects, and Events.
+2. [Backend Agent Spine](agent-spine.md) establishes durable model-facing state and extension registries.
+3. [Dynamic Plugin Manager](plugin-manager.md) owns root manifests, Revisions, and both contribution lifecycles.
+4. [Browser Bridge](browser-bridge.md) projects client Revisions into Cordis TS and carries explicit RPC and Events.
+5. [Host Assembly](host-assembly.md) composes providers, catalogs, HTTP/WebSocket transport, and process teardown.
+6. [Plugin Authoring SDK](plugin-sdk.md) provides the supported author APIs over both lifecycle runtimes.
+7. [Plugin Templates and Scaffolding](plugin-templates.md) depends on the SDK and generates all three contribution forms.
+8. [Multi-Page Client Activation](multi-page-activation.md) derives deployment readiness from Manager and Bridge state independently of authoring tooling.
 
-### Phase 2: Backend agent spine
-
-- immutable message and stream vocabulary;
-- append-only session log and surface projection;
-- LLM adapter registry;
-- scoped prompt and tool registries;
-- minimal turn/step agent loop;
-- keyless replay fixture.
-
-### Phase 3: Dynamic plugin manager
-
-- root plugin manifest and validation;
-- Python entrypoint discovery;
-- install, enable, disable, update, and aggregate status;
-- backend revision workers for reliable code replacement;
-- configuration and permission ownership.
-
-### Phase 4: Browser bridge
-
-- versioned protocol schema;
-- Python and TypeScript code generation;
-- RPC, cancellation, event forwarding, and opaque identity lookup;
-- content-hashed client graph and connected-browser reconciliation;
-- frontend-only and full-stack sample plugins.
-
-### Phase 5: Product capabilities
-
-- persistence and session querying;
-- filesystem, subprocess, sandbox, terminal, and LSP;
-- compaction, subagents, jobs, workflow, skills, settings, and credentials;
-- Web application migration and compatibility removal.
+Product capabilities such as persistence, filesystem, subprocess, sandbox, terminal, LSP, compaction, subagents, workflow, skills, settings, and credentials each require their own later specification and remain ordinary plugins over these foundations.
 
 ## Acceptance milestone
 
-The architecture is proven when one full-stack sample plugin can be installed while the application is running, add a backend tool, expose a remote method, register a browser result view, affect the next agent step, and remove every contribution cleanly on disable.
+The authoring path is proven when a generated full-stack plugin builds without network-dependent runtime behavior, activates through the assembled Host, exchanges typed RPC and Events, updates both Revisions, and removes every contribution cleanly on disable.
