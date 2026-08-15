@@ -151,6 +151,29 @@ uv run deepseek-harness-python invoke \
 
 The provider consumes SSE internally so raw chunks remain in the Session log, while the invocation API returns only the terminal Assistant message. Turns for the process-lifetime Session run in FIFO order. The API key is read only when provider activation is requested; the invoke command never reads or sends it directly.
 
+Enable the loopback Plugin Control API when you need live lifecycle operations. The API is disabled by default and refuses non-loopback listeners:
+
+```sh
+uv run deepseek-harness-python --control --plugins ./plugins --port 8765
+uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 list
+uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 enable com.example.echo
+uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 update com.example.echo
+```
+
+Catalog watching is opt-in and uses the same serialized lifecycle coordinator as HTTP operations. A watcher can install new roots, hot-update valid revisions, and apply explicit create/delete policies:
+
+```sh
+uv run deepseek-harness-python \
+  --control \
+  --plugins ./plugins \
+  --watch-plugins ./plugins \
+  --watch-debounce 0.5 \
+  --watch-create install_disabled \
+  --watch-delete disable
+```
+
+The control API is intended for trusted local development. It has no authentication, package download, dependency installation, signatures, or untrusted-code isolation. Use `deepseek-harness-plugin sdk export PATH` to copy the bundled Browser SDK tarball; client scaffolds vendor that exact digest with a relative `file:` dependency and a frozen lockfile.
+
 ## Development
 
 ```sh

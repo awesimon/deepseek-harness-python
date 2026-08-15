@@ -20,7 +20,7 @@ Phases 1 through 9 complete the dual-Cordis lifecycle, plugin authoring foundati
 | 7. Plugin Templates | [Plugin Templates](specs/plugin-templates.md) | Complete | All three layouts, deterministic/no-overwrite tests, generated downstream checks, and assembled full-stack Chromium evidence | Publish the TypeScript SDK before external template consumption |
 | 8. Multi-Page Activation | [Multi-Page Activation](specs/multi-page-activation.md) | Complete | Pure aggregation, generation fencing, Manager/Host tests, and two-page Chromium evidence under both quorum modes | Add selectors or cross-Host readiness only under a new specification |
 | 9. Agent Runtime Assembly | [Agent Runtime Assembly](specs/agent-runtime-assembly.md) | Complete | DeepSeek-compatible fake-provider and optional real-API tests, FIFO/cancellation tests, real Host HTTP/CLI tests, and shutdown regression coverage | Add durable Sessions or other providers only under separate specifications |
-| 10. Plugin Control Plane | [Plugin Control Plane](specs/plugin-control-plane.md) | Specified | Normative loopback API, optimistic concurrency, watcher, CLI, and local SDK distribution requirements | Implement after Phase 9 stabilizes shared Host and CLI surfaces |
+| 10. Plugin Control Plane | [Plugin Control Plane](specs/plugin-control-plane.md) | Complete | Loopback HTTP lifecycle API, optimistic concurrency, watchfiles hot updates, non-retrying CLI, bundled SDK export, isolated wheel scaffold/install/typecheck smoke | Specify durable inventory and remote distribution separately |
 
 ## Delivered foundation
 
@@ -46,6 +46,10 @@ Phases 1 through 9 complete the dual-Cordis lifecycle, plugin authoring foundati
 - DeepSeek-compatible Chat Completions SSE mapping with raw chunk logging, fragmented Tool Call assembly, credential-safe terminal provider failures, and exact LLM Route ownership.
 - One process-lifetime Session invocation service with FIFO Turn history, pre-admission Route validation, queued and active cancellation, and deterministic shutdown joining.
 - Non-streaming Host invocation and cancellation routes plus an HTTP client command that performs best-effort cancellation on interrupt without handling provider credentials.
+- Loopback-only Plugin Control API with immutable inventory snapshots, exact Origin and JSON mutation checks, FIFO mutation coordination, stale precondition rejection, and structured diagnostics.
+- Configurable catalog watcher with debounce, create/delete policies, in-flight coalescing, invalid-candidate preservation, and shared Manager lifecycle paths.
+- HTTP-only `deepseek-harness-python plugin` lifecycle CLI with JSON output, conflict visibility, and no automatic retry.
+- Bundled, digest-verified Browser SDK tarball and lockfile export; generated client projects vendor a relative `file:` dependency and install without a workspace symlink.
 
 ## Verification commands
 
@@ -62,11 +66,11 @@ pnpm --dir frontend run test
 pnpm --dir frontend run build
 ```
 
-Current automated count: 110 Python tests and 19 TypeScript tests, including three real Chromium scenarios. The optional real DeepSeek API test self-skips without `DEEPSEEK_API_KEY`.
+Current automated count: 122 Python tests and 19 TypeScript tests, including three real Chromium scenarios. The optional real DeepSeek API test self-skips without `DEEPSEEK_API_KEY`.
 
 ## Next milestone
 
-Implement Phase 10 over the stable Host and CLI surfaces. Durable Session storage, persistent plugin inventory, remote distribution and trust, and isolated backend execution remain later specified phases.
+Durable Session storage, persistent plugin inventory, remote distribution and trust, and isolated backend execution remain later specified phases.
 
 ## Intentional exclusions
 

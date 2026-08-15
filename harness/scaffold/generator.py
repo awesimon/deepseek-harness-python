@@ -16,10 +16,11 @@ from harness.plugins import load_manifest
 from harness.plugins.manifest import PLUGIN_ID, VERSION
 from harness.sdk import (
     BROWSER_SDK_PACKAGE,
-    BROWSER_SDK_VERSION,
     PYTHON_SDK_VERSION,
     RUNTIME_API,
 )
+
+from .sdk_asset import BROWSER_SDK_TARBALL, browser_sdk_bytes, browser_sdk_lockfile
 
 
 class PluginKind(str, Enum):
@@ -55,7 +56,11 @@ def create_plugin(
         for relative in sorted(files):
             path = temporary / relative
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(files[relative], encoding="utf-8", newline="\n")
+            content = files[relative]
+            if isinstance(content, bytes):
+                path.write_bytes(content)
+            else:
+                path.write_text(content, encoding="utf-8", newline="\n")
             path.chmod(0o644)
         _validate_source_tree(temporary, kind, require_artifacts=False)
         _rename_exclusive(temporary, resolved)
@@ -113,6 +118,7 @@ def _validate_source_tree(root: Path, kind: PluginKind, *, require_artifacts: bo
                 "frontend/tsconfig.json",
                 "frontend/src/plugin.ts",
                 "frontend/tests/plugin.test.ts",
+                f"frontend/vendor/{BROWSER_SDK_TARBALL}",
             }
         )
         bundle = root / "frontend/dist/client.js"
@@ -147,8 +153,12 @@ def _rename_exclusive(source: Path, destination: Path) -> None:
     raise OSError(error, os.strerror(error), destination)
 
 
-def _render(kind: PluginKind, plugin_id: str, version: str) -> MappingProxyType[str, str]:
-    files: dict[str, str] = {
+def _render(
+    kind: PluginKind,
+    plugin_id: str,
+    version: str,
+) -> MappingProxyType[str, str | bytes]:
+    files: dict[str, str | bytes] = {
         ".gitignore": _GITIGNORE,
         "README.md": _readme(kind),
         "plugin.toml": _manifest(kind, plugin_id, version),
@@ -171,6 +181,7 @@ def _render(kind: PluginKind, plugin_id: str, version: str) -> MappingProxyType[
         files["frontend/tests/plugin.test.ts"] = (
             _FULL_STACK_CLIENT_TEST if kind is PluginKind.FULL_STACK else _CLIENT_TEST
         )
+        files[f"frontend/vendor/{BROWSER_SDK_TARBALL}"] = browser_sdk_bytes()
     if kind is PluginKind.FULL_STACK:
         files["protocol/api.schema.json"] = _PROTOCOL_SCHEMA
     return MappingProxyType(files)
@@ -232,7 +243,7 @@ def _frontend_package(plugin_id: str) -> str:
     "typecheck": "tsc --noEmit"
   }},
   "dependencies": {{
-    "{BROWSER_SDK_PACKAGE}": "{BROWSER_SDK_VERSION}"
+    "{BROWSER_SDK_PACKAGE}": "file:vendor/{BROWSER_SDK_TARBALL}"
   }},
   "devDependencies": {{
     "esbuild": "^0.25.0",
@@ -244,30 +255,7 @@ def _frontend_package(plugin_id: str) -> str:
 
 
 def _frontend_lock() -> str:
-    return f"""lockfileVersion: '9.0'
-
-settings:
-  autoInstallPeers: true
-  excludeLinksFromLockfile: false
-
-importers:
-
-  .:
-    dependencies:
-      '{BROWSER_SDK_PACKAGE}':
-        specifier: {BROWSER_SDK_VERSION}
-        version: {BROWSER_SDK_VERSION}
-    devDependencies:
-      esbuild:
-        specifier: ^0.25.0
-        version: 0.25.12
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.7
-"""
+    return browser_sdk_lockfile()
 
 
 def _readme(kind: PluginKind) -> str:

@@ -9,7 +9,7 @@ description = "Python backend runtime for DeepSeek Harness"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = ["aiohttp>=3.11,<4", "jsonschema>=4.23,<5"]
+dependencies = ["aiohttp>=3.11,<4", "jsonschema>=4.23,<5", "watchfiles>=1.0,<2"]
 
 [project.scripts]
 deepseek-harness-python = "harness.host:main"
@@ -28,6 +28,7 @@ include = ["harness*"]
 
 [tool.setuptools.package-data]
 "harness.protocol" = ["*.json"]
+"harness.assets" = ["*.tgz", "*.yaml"]
 
 [tool.ruff]
 line-length = 100

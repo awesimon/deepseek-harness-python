@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import ipaddress
 import os
 import signal
 import socket
@@ -41,6 +42,20 @@ from harness.bridge import (
     BrowserBridge,
     BrowserBridgeTransport,
     browser_bridge_plugin,
+)
+from harness.control import (
+    PLUGIN_CONTROL,
+    ControlPluginSnapshot,
+    PluginCatalogWatcher,
+    PluginControlConfig,
+    PluginControlHttpAdapter,
+    PluginControlService,
+    PluginWatcherConfig,
+    WatchCreatePolicy,
+    WatchDeletePolicy,
+    build_plugin_parser,
+    plugin_control_plugin,
+    run_plugin_cli,
 )
 from harness.cordis import Cordis, Fiber, FiberState, PluginSpec
 from harness.plugins import (
@@ -96,6 +111,9 @@ class HarnessHostConfig:
     client_quorum_overrides: tuple[tuple[str, ClientQuorum], ...] = ()
     deepseek: DeepSeekHTTPConfig | None = None
     max_steps: int = 8
+    control_enabled: bool = False
+    watched_catalogs: tuple[Path, ...] = ()
+    watcher: PluginWatcherConfig | None = None
 
     def __post_init__(self) -> None:
         """Normalize paths and reject values that cannot define a listener."""
@@ -131,6 +149,11 @@ class HarnessHostConfig:
             "plugin_catalogs",
             tuple(Path(path) for path in self.plugin_catalogs),
         )
+        object.__setattr__(
+            self,
+            "watched_catalogs",
+            tuple(Path(path) for path in self.watched_catalogs),
+        )
         if self.browser_runtime is not None:
             object.__setattr__(self, "browser_runtime", Path(self.browser_runtime))
 
@@ -145,11 +168,14 @@ class HarnessHost:
         self._manager: PluginManager | None = None
         self._bridge: BrowserBridge | None = None
         self._invocations: AgentInvocationService | None = None
+        self._control: PluginControlService | None = None
+        self._watcher: PluginCatalogWatcher | None = None
         self._core_fibers: list[Fiber] = []
         self._enabled_plugins: list[str] = []
         self._runner: web.AppRunner | None = None
         self._base_url: str | None = None
         self._plugin_catalogs: tuple[Path, ...] = ()
+        self._watched_catalogs: tuple[Path, ...] = ()
         self._browser_bytes: bytes | None = None
         self._close_task: asyncio.Task[None] | None = None
 
@@ -175,6 +201,13 @@ class HarnessHost:
         return self._invocations
 
     @property
+    def control(self) -> PluginControlService:
+        """Return the active serialized Plugin Control Plane."""
+        if self._control is None:
+            raise RuntimeError("Harness Host has not established Plugin Control")
+        return self._control
+
+    @property
     def base_url(self) -> str:
         """Return the effective listener URL after successful startup."""
         if self._base_url is None:
@@ -191,6 +224,7 @@ class HarnessHost:
             await self._mount_core()
             await self._activate_catalogs()
             await self._start_listener()
+            await self._start_watcher()
         except BaseException as startup_error:
             self.state = HostState.FAILED
             try:
@@ -233,6 +267,26 @@ class HarnessHost:
                 raise HostStartupError(f"plugin catalog is not a directory: {catalog}")
             catalogs.append(catalog)
         self._plugin_catalogs = tuple(catalogs)
+        watched: list[Path] = []
+        for configured in self.config.watched_catalogs:
+            try:
+                catalog = configured.resolve(strict=True)
+            except OSError as error:
+                raise HostStartupError(
+                    f"cannot resolve watched plugin catalog {configured}: {error}"
+                ) from error
+            if catalog not in self._plugin_catalogs:
+                raise HostStartupError(
+                    f"watched plugin catalog is not a trusted plugin catalog: {catalog}"
+                )
+            watched.append(catalog)
+        self._watched_catalogs = tuple(watched)
+        if self.config.watcher is None and watched:
+            raise HostStartupError("watched plugin catalogs require watcher configuration")
+        if self.config.watcher is not None and not watched:
+            raise HostStartupError("watcher configuration requires at least one watched catalog")
+        if self.config.control_enabled and not _host_is_loopback(self.config.bind_host):
+            raise HostStartupError("unauthenticated Plugin Control requires a loopback-only host")
 
         runtime = self.config.browser_runtime
         if runtime is None:
@@ -256,10 +310,20 @@ class HarnessHost:
         )
         await self._mount_core_plugin(plugin_manager_plugin(), None)
         await self._mount_core_plugin(browser_bridge_plugin(), None)
+        await self._mount_core_plugin(
+            plugin_control_plugin(),
+            PluginControlConfig(self._plugin_catalogs),
+        )
         self._manager = self.runtime.root.lookup(PLUGIN_MANAGER)
         self._bridge = self.runtime.root.lookup(BROWSER_BRIDGE)
         self._invocations = self.runtime.root.lookup(AGENT_INVOCATIONS)
-        if self._manager is None or self._bridge is None or self._invocations is None:
+        self._control = self.runtime.root.lookup(PLUGIN_CONTROL)
+        if (
+            self._manager is None
+            or self._bridge is None
+            or self._invocations is None
+            or self._control is None
+        ):
             raise HostStartupError("core composition did not publish required Services")
 
     async def _mount_core_plugin[ConfigT](
@@ -281,8 +345,10 @@ class HarnessHost:
                 detail = "; ".join(f"{item.contribution}: {item.message}" for item in diagnostics)
                 raise HostStartupError(f"plugin discovery failed: {detail}")
             revisions.extend(item for item in discovered if not isinstance(item, PluginDiagnostic))
+        installed: list[ControlPluginSnapshot] = []
         for revision in revisions:
-            await self.manager.install(revision.root)
+            operation = await self.control.install(revision.root, expected_absent=True)
+            installed.append(operation.snapshot)
         try:
             self.manager.configure_client_quorums(
                 self.config.client_quorum,
@@ -290,8 +356,13 @@ class HarnessHost:
             )
         except ValueError as error:
             raise HostStartupError(f"invalid client quorum configuration: {error}") from error
-        for revision in revisions:
-            snapshot = await self.manager.enable(revision.manifest.plugin_id)
+        for current in installed:
+            operation = await self.control.enable(
+                current.plugin.plugin_id,
+                expected_revision=current.plugin.revision,
+                expected_mutation_version=current.mutation_version,
+            )
+            snapshot = operation.snapshot.plugin
             if snapshot.state is PluginState.FAILED:
                 diagnostic = snapshot.diagnostic
                 detail = "unknown activation failure" if diagnostic is None else diagnostic.message
@@ -312,6 +383,8 @@ class HarnessHost:
             "/api/v1/agent/invocations/{invocation_id}",
             self._cancel_invocation,
         )
+        if self.config.control_enabled:
+            PluginControlHttpAdapter(self.control, lambda: self.base_url).register(app)
         if self._browser_bytes is not None:
             app.router.add_get("/", self._index)
             app.router.add_get("/browser.js", self._browser_runtime)
@@ -332,6 +405,18 @@ class HarnessHost:
         display_host = f"[{host}]" if ":" in host else host
         self._base_url = f"http://{display_host}:{port}"
 
+    async def _start_watcher(self) -> None:
+        config = self.config.watcher
+        if config is None:
+            return
+        watcher = PluginCatalogWatcher(
+            self.control,
+            config,
+            catalogs=self._watched_catalogs,
+        )
+        await watcher.start()
+        self._watcher = watcher
+
     async def _close_once(self) -> None:
         if self.state is HostState.CLOSED:
             return
@@ -343,6 +428,14 @@ class HarnessHost:
 
     async def _cleanup(self) -> None:
         errors: list[BaseException] = []
+        if self._control is not None:
+            self._control.begin_close()
+        if self._watcher is not None:
+            try:
+                await self._watcher.close()
+            except BaseException as error:  # noqa: BLE001 -- later cleanup must still run
+                errors.append(error)
+            self._watcher = None
         if self._invocations is not None:
             try:
                 await self._invocations.close()
@@ -478,6 +571,25 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--llm-connect-timeout", type=float, default=10.0)
     parser.add_argument("--llm-request-timeout", type=float, default=120.0)
     parser.add_argument("--max-steps", type=int, default=8)
+    parser.add_argument("--control", action="store_true")
+    parser.add_argument(
+        "--watch-plugins",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="DIRECTORY",
+    )
+    parser.add_argument("--watch-debounce", type=float, default=0.25)
+    parser.add_argument(
+        "--watch-create",
+        choices=tuple(item.value for item in WatchCreatePolicy),
+        default=WatchCreatePolicy.IGNORE.value,
+    )
+    parser.add_argument(
+        "--watch-delete",
+        choices=tuple(item.value for item in WatchDeletePolicy),
+        default=WatchDeletePolicy.IGNORE.value,
+    )
     return parser
 
 
@@ -524,6 +636,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
         except KeyboardInterrupt:
             return 130
 
+    if raw_arguments and raw_arguments[0] == "plugin":
+        namespace = build_plugin_parser().parse_args(raw_arguments[1:])
+        try:
+            return asyncio.run(run_plugin_cli(namespace))
+        except KeyboardInterrupt:
+            return 130
+
     parser = build_parser()
     namespace = parser.parse_args(raw_arguments)
     try:
@@ -540,6 +659,17 @@ def main(arguments: Sequence[str] | None = None) -> int:
         client_quorum_overrides=tuple(namespace.client_quorum_override),
         deepseek=deepseek,
         max_steps=namespace.max_steps,
+        control_enabled=namespace.control,
+        watched_catalogs=tuple(namespace.watch_plugins),
+        watcher=(
+            None
+            if not namespace.watch_plugins
+            else PluginWatcherConfig(
+                namespace.watch_debounce,
+                WatchCreatePolicy(namespace.watch_create),
+                WatchDeletePolicy(namespace.watch_delete),
+            )
+        ),
     )
     try:
         asyncio.run(serve(config))
@@ -688,3 +818,23 @@ def _error_response(
     if provider_status is not None:
         payload["provider_status"] = provider_status
     return web.json_response(payload, status=status)
+
+
+def _host_is_loopback(host: str) -> bool:
+    try:
+        addresses = cast(
+            list[
+                tuple[
+                    int,
+                    int,
+                    int,
+                    str,
+                    tuple[str, int] | tuple[str, int, int, int],
+                ]
+            ],
+            socket.getaddrinfo(host, None, type=socket.SOCK_STREAM),
+        )
+    except socket.gaierror as error:
+        raise HostStartupError(f"cannot resolve control bind host {host!r}: {error}") from error
+    resolved = {item[4][0].split("%", 1)[0] for item in addresses}
+    return bool(resolved) and all(ipaddress.ip_address(value).is_loopback for value in resolved)

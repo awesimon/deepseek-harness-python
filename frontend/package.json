@@ -3,6 +3,10 @@
   "version": "0.1.0-dev.0",
   "private": true,
   "type": "module",
+  "files": [
+    "dist/*.js",
+    "dist/*.d.ts"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

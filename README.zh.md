@@ -151,6 +151,29 @@ uv run deepseek-harness-python invoke \
 
 Provider 在内部消费 SSE，因此 Raw Chunk 会保留在 Session Log 中，而 Invocation API 只返回终止 Assistant Message。Process-Lifetime Session 的 Turn 按 FIFO 顺序执行。只有请求启用 Provider 时才会读取 API Key；Invoke Command 不会自行读取或直接发送凭据。
 
+需要在线执行生命周期操作时，启用 loopback Plugin Control API。该 API 默认关闭，并且拒绝非 loopback Listener：
+
+```sh
+uv run deepseek-harness-python --control --plugins ./plugins --port 8765
+uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 list
+uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 enable com.example.echo
+uv run deepseek-harness-python plugin --url http://127.0.0.1:8765 update com.example.echo
+```
+
+Catalog Watching 是可选的，并且与 HTTP Operation 共用同一个串行 Lifecycle Coordinator。Watcher 可以安装新 Root、热更新有效 Revision，并使用明确的 Create/Delete Policy：
+
+```sh
+uv run deepseek-harness-python \
+  --control \
+  --plugins ./plugins \
+  --watch-plugins ./plugins \
+  --watch-debounce 0.5 \
+  --watch-create install_disabled \
+  --watch-delete disable
+```
+
+Control API 面向可信本地开发，不提供 Authentication、Package Download、Dependency Installation、Signature 或不受信任代码隔离。使用 `deepseek-harness-plugin sdk export PATH` 可以导出内置 Browser SDK Tarball；Client Scaffolding 会以相对 `file:` Dependency 和 Frozen Lockfile 固定使用该 Digest。
+
 ## 开发
 
 ```sh
