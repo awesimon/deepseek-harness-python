@@ -1,9 +1,11 @@
-"""Public Phase 2 Agent Spine API."""
+"""Public Agent Spine and runtime assembly API."""
 
+from .deepseek import DeepSeekHTTPAdapter, DeepSeekHTTPConfig
 from .llm import (
     DuplicateLLMRouteError,
     LLMAdapter,
     LLMAdapterProtocolError,
+    LLMProviderError,
     LLMRegistry,
     LLMRouteNotFoundError,
 )
@@ -26,6 +28,18 @@ from .plugin import (
     agent_spine_plugin,
 )
 from .registries import PromptRegistry, PromptSection, Tool, ToolRegistry
+from .runtime import (
+    AGENT_INVOCATIONS,
+    DEFAULT_LLM_ROUTE,
+    AgentInvocationError,
+    AgentInvocationService,
+    AgentRuntimeConfig,
+    DefaultLLMRouteUnavailableError,
+    DuplicateInvocationIdError,
+    InvocationCancelledError,
+    InvocationServiceClosedError,
+    agent_runtime_plugin,
+)
 from .scope import AgentScope, DuplicateContributionError, LayeredRegistry
 from .session import (
     AssistantMessageCommitted,
@@ -45,6 +59,7 @@ from .values import (
     LLMRoute,
     Message,
     ModelChunk,
+    ModelProviderFailure,
     ModelRequest,
     ModelResponse,
     ModelToolDefinition,
@@ -62,24 +77,36 @@ from .values import (
 )
 
 __all__ = [
+    "AGENT_INVOCATIONS",
     "AGENT_LOOP",
     "AGENT_POST_STEP",
     "AGENT_PRE_STEP",
+    "DEFAULT_LLM_ROUTE",
     "LLM_REGISTRY",
     "PROMPT_REGISTRY",
     "SESSION_LOG",
     "TOOLS_POST_EXECUTE",
     "TOOLS_PRE_EXECUTE",
     "TOOL_REGISTRY",
+    "AgentInvocationError",
+    "AgentInvocationService",
     "AgentLoop",
     "AgentRunResult",
+    "AgentRuntimeConfig",
     "AgentScope",
     "AgentSpineConfig",
     "AssistantMessageCommitted",
+    "DeepSeekHTTPAdapter",
+    "DeepSeekHTTPConfig",
+    "DefaultLLMRouteUnavailableError",
     "DuplicateContributionError",
+    "DuplicateInvocationIdError",
     "DuplicateLLMRouteError",
+    "InvocationCancelledError",
+    "InvocationServiceClosedError",
     "LLMAdapter",
     "LLMAdapterProtocolError",
+    "LLMProviderError",
     "LLMRegistry",
     "LLMRoute",
     "LLMRouteNotFoundError",
@@ -88,6 +115,7 @@ __all__ = [
     "Message",
     "ModelChunk",
     "ModelChunkRecorded",
+    "ModelProviderFailure",
     "ModelRequest",
     "ModelRequestRecorded",
     "ModelResponse",
@@ -114,6 +142,7 @@ __all__ = [
     "TurnId",
     "UnknownSessionEventError",
     "UserInputAccepted",
+    "agent_runtime_plugin",
     "agent_spine_plugin",
     "freeze_json",
     "thaw_json",

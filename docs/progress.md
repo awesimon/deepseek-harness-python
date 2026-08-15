@@ -4,7 +4,7 @@ This document records implementation state and verification evidence. Each phase
 
 ## Current milestone
 
-Phases 1 through 8 complete the dual-Cordis lifecycle and plugin authoring foundation. Phase 9 now specifies a runnable Agent provider and invocation path; Phase 10 specifies the loopback Plugin Control Plane, catalog watching, and local browser SDK distribution. Implementation proceeds in that dependency order.
+Phases 1 through 9 complete the dual-Cordis lifecycle, plugin authoring foundation, and runnable Agent path. Phase 10 now owns the next milestone: a loopback Plugin Control Plane, catalog watching, and local browser SDK distribution.
 
 ## Phase status
 
@@ -19,7 +19,7 @@ Phases 1 through 8 complete the dual-Cordis lifecycle and plugin authoring found
 | 6. Plugin Authoring SDK | [Plugin SDK](specs/plugin-sdk.md) | Complete | 11 Python SDK tests, 12 TypeScript SDK tests, strict type checks, and library build/import smokes | Keep production identity injection separate from test fixtures |
 | 7. Plugin Templates | [Plugin Templates](specs/plugin-templates.md) | Complete | All three layouts, deterministic/no-overwrite tests, generated downstream checks, and assembled full-stack Chromium evidence | Publish the TypeScript SDK before external template consumption |
 | 8. Multi-Page Activation | [Multi-Page Activation](specs/multi-page-activation.md) | Complete | Pure aggregation, generation fencing, Manager/Host tests, and two-page Chromium evidence under both quorum modes | Add selectors or cross-Host readiness only under a new specification |
-| 9. Agent Runtime Assembly | [Agent Runtime Assembly](specs/agent-runtime-assembly.md) | Specified | Normative provider, invocation, cancellation, HTTP, CLI, and shutdown requirements | Implement before changing the shared Host for the control plane |
+| 9. Agent Runtime Assembly | [Agent Runtime Assembly](specs/agent-runtime-assembly.md) | Complete | DeepSeek-compatible fake-provider and optional real-API tests, FIFO/cancellation tests, real Host HTTP/CLI tests, and shutdown regression coverage | Add durable Sessions or other providers only under separate specifications |
 | 10. Plugin Control Plane | [Plugin Control Plane](specs/plugin-control-plane.md) | Specified | Normative loopback API, optimistic concurrency, watcher, CLI, and local SDK distribution requirements | Implement after Phase 9 stabilizes shared Host and CLI surfaces |
 
 ## Delivered foundation
@@ -43,6 +43,9 @@ Phases 1 through 8 complete the dual-Cordis lifecycle and plugin authoring found
 - Deterministic atomic scaffolding for all three contribution forms with no overwrite path and generated downstream tests/builds.
 - Multi-page client aggregation with exact-Revision observations, connection generations, `WAITING`, both quorum policies, recovery, and drainage.
 - Real Chromium evidence for divergent page outcomes, membership recovery, Revision update, and a generated full-stack plugin exchanging RPC and Events.
+- DeepSeek-compatible Chat Completions SSE mapping with raw chunk logging, fragmented Tool Call assembly, credential-safe terminal provider failures, and exact LLM Route ownership.
+- One process-lifetime Session invocation service with FIFO Turn history, pre-admission Route validation, queued and active cancellation, and deterministic shutdown joining.
+- Non-streaming Host invocation and cancellation routes plus an HTTP client command that performs best-effort cancellation on interrupt without handling provider credentials.
 
 ## Verification commands
 
@@ -59,11 +62,11 @@ pnpm --dir frontend run test
 pnpm --dir frontend run build
 ```
 
-Current automated count: 92 Python tests and 19 TypeScript tests, including three real Chromium scenarios.
+Current automated count: 110 Python tests and 19 TypeScript tests, including three real Chromium scenarios. The optional real DeepSeek API test self-skips without `DEEPSEEK_API_KEY`.
 
 ## Next milestone
 
-Implement Phase 9 completely and verify the runnable Agent path before implementing Phase 10. Durable Session storage, persistent plugin inventory, remote distribution and trust, and isolated backend execution remain later specified phases.
+Implement Phase 10 over the stable Host and CLI surfaces. Durable Session storage, persistent plugin inventory, remote distribution and trust, and isolated backend execution remain later specified phases.
 
 ## Intentional exclusions
 

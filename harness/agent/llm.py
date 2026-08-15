@@ -5,7 +5,14 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Protocol
 
-from .values import AdapterOutput, LLMRoute, ModelChunk, ModelRequest, ModelResponse
+from .values import (
+    AdapterOutput,
+    LLMRoute,
+    ModelChunk,
+    ModelProviderFailure,
+    ModelRequest,
+    ModelResponse,
+)
 
 
 class DuplicateLLMRouteError(RuntimeError):
@@ -20,11 +27,19 @@ class LLMAdapterProtocolError(RuntimeError):
     """Raised when an adapter violates terminal response ordering."""
 
 
+class LLMProviderError(RuntimeError):
+    """Raised after an adapter yields one terminal provider failure."""
+
+    def __init__(self, failure: ModelProviderFailure) -> None:
+        super().__init__(failure.message)
+        self.failure = failure
+
+
 class LLMAdapter(Protocol):
-    """One provider implementation yielding chunks then one response."""
+    """One provider implementation yielding chunks then one terminal result."""
 
     def stream(self, request: ModelRequest) -> AsyncIterator[AdapterOutput]:
-        """Yield zero or more chunks followed by exactly one response."""
+        """Yield zero or more chunks followed by exactly one terminal result."""
         ...
 
 
@@ -68,13 +83,13 @@ async def collect_adapter_response(
     request: ModelRequest,
     on_chunk: Callable[[ModelChunk], None | Awaitable[None]],
 ) -> ModelResponse:
-    """Consume an adapter stream while enforcing one terminal response."""
-    response: ModelResponse | None = None
+    """Consume a stream and return its response or raise its terminal failure."""
+    terminal: ModelResponse | ModelProviderFailure | None = None
     async for item in adapter.stream(request):
-        if response is not None:
+        if terminal is not None:
             raise LLMAdapterProtocolError("adapter yielded output after its terminal response")
-        if isinstance(item, ModelResponse):
-            response = item
+        if isinstance(item, (ModelResponse, ModelProviderFailure)):
+            terminal = item
             continue
         if not isinstance(item, ModelChunk):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise LLMAdapterProtocolError(
@@ -83,6 +98,8 @@ async def collect_adapter_response(
         result = on_chunk(item)
         if isinstance(result, Awaitable):
             await result
-    if response is None:
+    if terminal is None:
         raise LLMAdapterProtocolError("adapter completed without a terminal response")
-    return response
+    if isinstance(terminal, ModelProviderFailure):
+        raise LLMProviderError(terminal)
+    return terminal

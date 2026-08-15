@@ -114,6 +114,7 @@ The distribution name is `deepseek-harness-python`; the only supported import ro
 - Python and TypeScript authoring SDKs with immutable direction-safe descriptors, injected identity, lifecycle-owned registrations, and in-memory test harnesses.
 - Deterministic backend-only, client-only, and full-stack scaffolding with atomic no-overwrite generation and runtime validation.
 - Multi-page readiness aggregation with `all_connected` and `any_connected` quorum, connection-generation fencing, structured diagnostics, recovery, and disable drainage.
+- A DeepSeek-compatible streaming provider adapter, FIFO Session invocation service, cancellable Host API, and HTTP invocation CLI.
 
 See [implementation progress](docs/progress.md) and the [foundation completion specification](docs/specs/foundation-completion.md) for acceptance evidence and intentional exclusions.
 
@@ -134,6 +135,22 @@ uv run deepseek-harness-python \
 
 The command prints the effective URL. `--plugins` is repeatable, and `python -m harness` accepts the same arguments. Omit `--browser-runtime` for a backend-only Host without the bootstrap routes.
 
+To activate the built-in DeepSeek-compatible route, provide the credential through the environment and configure an exact provider/model pair:
+
+```sh
+export DEEPSEEK_API_KEY='...'
+uv run deepseek-harness-python \
+  --llm-provider deepseek \
+  --llm-model deepseek-chat \
+  --port 8765
+
+uv run deepseek-harness-python invoke \
+  --url http://127.0.0.1:8765 \
+  'Reply with one short sentence.'
+```
+
+The provider consumes SSE internally so raw chunks remain in the Session log, while the invocation API returns only the terminal Assistant message. Turns for the process-lifetime Session run in FIFO order. The API key is read only when provider activation is requested; the invoke command never reads or sends it directly.
+
 ## Development
 
 ```sh
@@ -149,4 +166,4 @@ pnpm --dir frontend run test
 pnpm --dir frontend run build
 ```
 
-The current in-process Python Backend Host is for trusted local plugins. Authentication, package distribution, persistent inventory and Sessions, dependency installation, signatures, and process isolation for untrusted plugins remain product or deployment work. New product phases start with a normative specification under `docs/specs/` and update [implementation progress](docs/progress.md) with executable evidence.
+The current in-process Python Backend Host is for trusted local plugins. Authentication, package distribution, persistent inventory and Sessions, dependency installation, signatures, and process isolation for untrusted plugins remain product or deployment work. The current Agent Session is memory-only and does not claim restart recovery. New product phases start with a normative specification under `docs/specs/` and update [implementation progress](docs/progress.md) with executable evidence.

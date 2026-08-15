@@ -11,7 +11,13 @@ from jsonschema import ValidationError
 
 from harness.cordis import Context, EventKey, EventMode
 
-from .llm import LLMAdapterProtocolError, LLMRegistry, collect_adapter_response
+from .llm import (
+    LLMAdapterProtocolError,
+    LLMProviderError,
+    LLMRegistry,
+    LLMRouteNotFoundError,
+    collect_adapter_response,
+)
 from .registries import PromptRegistry, Tool, ToolRegistry
 from .scope import AgentScope
 from .session import (
@@ -142,23 +148,26 @@ class AgentLoop:
             )
             if request.turn_id != turn_id or request.step_id != step_id:
                 raise AgentLoopError("agent/pre-step cannot replace Turn or Step identity")
-            adapter = self.llms.resolve(request.route)
             self.log.append(ModelRequestRecorded(request))
 
             def record_chunk(chunk: ModelChunk, current_step: StepId = step_id) -> None:
                 self.log.append(ModelChunkRecorded(current_step, chunk))
 
             try:
+                adapter = self.llms.resolve(request.route)
                 response = await collect_adapter_response(adapter, request, record_chunk)
             except asyncio.CancelledError:
                 self.log.append(StepFailed(step_id, "cancelled", "model request cancelled"))
                 raise
             except Exception as error:
-                code = (
-                    "adapter_protocol"
-                    if isinstance(error, LLMAdapterProtocolError)
-                    else "adapter_error"
-                )
+                if isinstance(error, LLMProviderError):
+                    code = error.failure.code
+                elif isinstance(error, LLMRouteNotFoundError):
+                    code = "route_unavailable"
+                elif isinstance(error, LLMAdapterProtocolError):
+                    code = "adapter_protocol"
+                else:
+                    code = "adapter_error"
                 self.log.append(StepFailed(step_id, code, str(error)))
                 raise
 

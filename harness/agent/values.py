@@ -178,7 +178,25 @@ class ModelResponse:
         return Message(Role.ASSISTANT, self.content, self.tool_calls)
 
 
-type AdapterOutput = ModelChunk | ModelResponse
+@dataclass(frozen=True, slots=True)
+class ModelProviderFailure:
+    """One credential-free terminal failure from an LLM provider."""
+
+    code: str
+    message: str
+    retryable: bool = False
+    http_status: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.code or not self.message:
+            raise ValueError("provider failures require a code and message")
+        if self.http_status is not None and (
+            isinstance(self.http_status, bool) or not 100 <= self.http_status <= 599
+        ):
+            raise ValueError("provider HTTP status must be between 100 and 599")
+
+
+type AdapterOutput = ModelChunk | ModelResponse | ModelProviderFailure
 
 
 @dataclass(frozen=True, slots=True)

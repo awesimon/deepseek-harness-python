@@ -114,6 +114,7 @@ Distribution Name 是 `deepseek-harness-python`，唯一支持的 Import Root �
 - 提供 Python 和 TypeScript 开发 SDK，包括不可变且方向安全的 Descriptor、注入身份、生命周期拥有的 Registration 和内存 Test Harness。
 - 提供确定性的 Backend-Only、Client-Only 和 Full-Stack Scaffolding，包括原子且禁止覆盖的生成和 Runtime Validation。
 - 提供 Multi-Page Readiness Aggregation，包括 `all_connected` 和 `any_connected` Quorum、Connection Generation 隔离、结构化诊断、恢复和 Disable Drainage。
+- 提供 DeepSeek-Compatible Streaming Provider Adapter、FIFO Session Invocation Service、可取消的 Host API 和 HTTP Invocation CLI。
 
 验收证据和明确排除项见[实现进度](docs/progress.md)和[基础完成规范](docs/specs/foundation-completion.md)。
 
@@ -134,6 +135,22 @@ uv run deepseek-harness-python \
 
 命令会输出实际 URL。`--plugins` 可以重复传入，`python -m harness` 接受相同参数。Backend-Only Host 可以省略 `--browser-runtime`，此时不会提供 Bootstrap Route。
 
+要启用内置 DeepSeek-Compatible Route，通过环境变量提供凭据，并配置精确的 Provider/Model Pair：
+
+```sh
+export DEEPSEEK_API_KEY='...'
+uv run deepseek-harness-python \
+  --llm-provider deepseek \
+  --llm-model deepseek-chat \
+  --port 8765
+
+uv run deepseek-harness-python invoke \
+  --url http://127.0.0.1:8765 \
+  'Reply with one short sentence.'
+```
+
+Provider 在内部消费 SSE，因此 Raw Chunk 会保留在 Session Log 中，而 Invocation API 只返回终止 Assistant Message。Process-Lifetime Session 的 Turn 按 FIFO 顺序执行。只有请求启用 Provider 时才会读取 API Key；Invoke Command 不会自行读取或直接发送凭据。
+
 ## 开发
 
 ```sh
@@ -149,4 +166,4 @@ pnpm --dir frontend run test
 pnpm --dir frontend run build
 ```
 
-当前进程内 Python Backend Host 只适用于可信本地 Plugin。Authentication、Package Distribution、持久化 Inventory 和 Session、Dependency Installation、Signature，以及不受信任 Plugin 的 Process Isolation 仍属于产品或部署工作。新的产品 Phase 必须先在 `docs/specs/` 下编写 Normative Specification，并在[实现进度](docs/progress.md)中记录可执行证据。
+当前进程内 Python Backend Host 只适用于可信本地 Plugin。Authentication、Package Distribution、持久化 Inventory 和 Session、Dependency Installation、Signature，以及不受信任 Plugin 的 Process Isolation 仍属于产品或部署工作。当前 Agent Session 只存在于内存，不承诺 Restart Recovery。新的产品 Phase 必须先在 `docs/specs/` 下编写 Normative Specification，并在[实现进度](docs/progress.md)中记录可执行证据。

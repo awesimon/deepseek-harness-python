@@ -4,18 +4,38 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import signal
 import socket
-from collections.abc import Sequence
+import sys
+import uuid
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Self, cast
 
-from aiohttp import web
+from aiohttp import ClientError, ClientSession, web
 
-from harness.agent import AgentSpineConfig, agent_spine_plugin
+from harness.agent import (
+    AGENT_INVOCATIONS,
+    AgentInvocationService,
+    AgentRuntimeConfig,
+    AgentSpineConfig,
+    DeepSeekHTTPConfig,
+    DefaultLLMRouteUnavailableError,
+    DuplicateInvocationIdError,
+    InvocationCancelledError,
+    InvocationServiceClosedError,
+    LLMAdapterProtocolError,
+    LLMProviderError,
+    LLMRoute,
+    LLMRouteNotFoundError,
+    MaximumStepsExceededError,
+    agent_runtime_plugin,
+    agent_spine_plugin,
+)
 from harness.bridge import (
     BROWSER_BRIDGE,
     BrowserBridge,
@@ -74,6 +94,8 @@ class HarnessHostConfig:
     browser_runtime: Path | None = None
     client_quorum: ClientQuorum = ClientQuorum.ALL_CONNECTED
     client_quorum_overrides: tuple[tuple[str, ClientQuorum], ...] = ()
+    deepseek: DeepSeekHTTPConfig | None = None
+    max_steps: int = 8
 
     def __post_init__(self) -> None:
         """Normalize paths and reject values that cannot define a listener."""
@@ -83,6 +105,8 @@ class HarnessHostConfig:
             raise ValueError("bind host must not be empty")
         if self.port < 0 or self.port > 65535:
             raise ValueError("port must be between 0 and 65535")
+        if isinstance(self.max_steps, bool) or self.max_steps <= 0:
+            raise ValueError("maximum Steps must be positive")
         try:
             client_quorum = ClientQuorum(self.client_quorum)
         except ValueError as error:
@@ -120,6 +144,7 @@ class HarnessHost:
         self.runtime = Cordis()
         self._manager: PluginManager | None = None
         self._bridge: BrowserBridge | None = None
+        self._invocations: AgentInvocationService | None = None
         self._core_fibers: list[Fiber] = []
         self._enabled_plugins: list[str] = []
         self._runner: web.AppRunner | None = None
@@ -141,6 +166,13 @@ class HarnessHost:
         if self._bridge is None:
             raise RuntimeError("Harness Host has not established the Browser Bridge")
         return self._bridge
+
+    @property
+    def invocations(self) -> AgentInvocationService:
+        """Return the active Session-scoped Agent invocation service."""
+        if self._invocations is None:
+            raise RuntimeError("Harness Host has not established Agent invocations")
+        return self._invocations
 
     @property
     def base_url(self) -> str:
@@ -218,11 +250,16 @@ class HarnessHost:
             agent_spine_plugin(),
             AgentSpineConfig(self.config.session_id),
         )
+        await self._mount_core_plugin(
+            agent_runtime_plugin(),
+            AgentRuntimeConfig(self.config.deepseek, self.config.max_steps),
+        )
         await self._mount_core_plugin(plugin_manager_plugin(), None)
         await self._mount_core_plugin(browser_bridge_plugin(), None)
         self._manager = self.runtime.root.lookup(PLUGIN_MANAGER)
         self._bridge = self.runtime.root.lookup(BROWSER_BRIDGE)
-        if self._manager is None or self._bridge is None:
+        self._invocations = self.runtime.root.lookup(AGENT_INVOCATIONS)
+        if self._manager is None or self._bridge is None or self._invocations is None:
             raise HostStartupError("core composition did not publish required Services")
 
     async def _mount_core_plugin[ConfigT](
@@ -267,6 +304,14 @@ class HarnessHost:
         transport = BrowserBridgeTransport(self.bridge)
         app = transport.create_app()
         app.router.add_get("/health", self._health)
+        app.router.add_post(
+            "/api/v1/agent/invocations/{invocation_id}",
+            self._invoke_agent,
+        )
+        app.router.add_delete(
+            "/api/v1/agent/invocations/{invocation_id}",
+            self._cancel_invocation,
+        )
         if self._browser_bytes is not None:
             app.router.add_get("/", self._index)
             app.router.add_get("/browser.js", self._browser_runtime)
@@ -298,6 +343,11 @@ class HarnessHost:
 
     async def _cleanup(self) -> None:
         errors: list[BaseException] = []
+        if self._invocations is not None:
+            try:
+                await self._invocations.close()
+            except BaseException as error:  # noqa: BLE001 -- listener cleanup must still run
+                errors.append(error)
         if self._runner is not None:
             try:
                 await self._runner.cleanup()
@@ -321,6 +371,66 @@ class HarnessHost:
 
     async def _health(self, _request: web.Request) -> web.Response:
         return web.json_response({"status": "ok"})
+
+    async def _invoke_agent(self, request: web.Request) -> web.Response:
+        identifier = request.match_info["invocation_id"]
+        try:
+            payload = await request.json()
+        except (ValueError, TypeError):
+            return _error_response(400, "invalid_request", "request body must be JSON")
+        try:
+            text, route = _parse_invocation_payload(payload)
+            result = await self.invocations.invoke(identifier, text, route=route)
+        except (TypeError, ValueError) as error:
+            return _error_response(400, "invalid_request", str(error))
+        except DuplicateInvocationIdError as error:
+            return _error_response(409, "duplicate_invocation", str(error))
+        except InvocationCancelledError as error:
+            return _error_response(409, "invocation_cancelled", str(error))
+        except MaximumStepsExceededError as error:
+            return _error_response(409, "maximum_steps", str(error))
+        except (DefaultLLMRouteUnavailableError, LLMRouteNotFoundError) as error:
+            return _error_response(503, "route_unavailable", str(error))
+        except InvocationServiceClosedError as error:
+            return _error_response(503, "invocation_service_closed", str(error))
+        except LLMProviderError as error:
+            status = 504 if error.failure.code == "provider_timeout" else 502
+            return _error_response(
+                status,
+                error.failure.code,
+                str(error),
+                retryable=error.failure.retryable,
+                provider_status=error.failure.http_status,
+            )
+        except LLMAdapterProtocolError as error:
+            return _error_response(502, "adapter_protocol", str(error))
+        except Exception:  # noqa: BLE001 -- internal details never cross the HTTP API
+            return _error_response(500, "invocation_failed", "Agent invocation failed")
+        return web.json_response(
+            {
+                "invocation_id": identifier,
+                "session_id": self.invocations.log.session_id,
+                "turn_id": result.turn_id,
+                "steps": result.steps,
+                "message": {
+                    "role": result.message.role.value,
+                    "content": result.message.content,
+                },
+            }
+        )
+
+    async def _cancel_invocation(self, request: web.Request) -> web.Response:
+        identifier = request.match_info["invocation_id"]
+        if not await self.invocations.cancel(identifier):
+            return _error_response(
+                404,
+                "invocation_not_found",
+                f"Invocation ID {identifier!r} is not queued or active",
+            )
+        return web.json_response(
+            {"invocation_id": identifier, "status": "cancellation_requested"},
+            status=202,
+        )
 
     async def _index(self, _request: web.Request) -> web.Response:
         return web.Response(body=_BOOTSTRAP_HTML, content_type="text/html")
@@ -361,6 +471,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="PLUGIN_ID=QUORUM",
     )
+    parser.add_argument("--llm-provider")
+    parser.add_argument("--llm-model")
+    parser.add_argument("--llm-base-url", default="https://api.deepseek.com")
+    parser.add_argument("--llm-api-key-env", default="DEEPSEEK_API_KEY")
+    parser.add_argument("--llm-connect-timeout", type=float, default=10.0)
+    parser.add_argument("--llm-request-timeout", type=float, default=120.0)
+    parser.add_argument("--max-steps", type=int, default=8)
+    return parser
+
+
+def build_invoke_parser() -> argparse.ArgumentParser:
+    """Return the parser for the HTTP invocation client command."""
+    parser = argparse.ArgumentParser(prog="deepseek-harness-python invoke")
+    parser.add_argument("--url", required=True)
+    parser.add_argument("--provider")
+    parser.add_argument("--model")
+    parser.add_argument("text", metavar="TEXT")
     return parser
 
 
@@ -386,7 +513,23 @@ async def serve(config: HarnessHostConfig) -> None:
 
 def main(arguments: Sequence[str] | None = None) -> int:
     """Parse arguments and run the asynchronous Host lifecycle."""
-    namespace = build_parser().parse_args(arguments)
+    raw_arguments = list(sys.argv[1:] if arguments is None else arguments)
+    if raw_arguments and raw_arguments[0] == "invoke":
+        parser = build_invoke_parser()
+        namespace = parser.parse_args(raw_arguments[1:])
+        if (namespace.provider is None) != (namespace.model is None):
+            parser.error("--provider and --model must be provided together")
+        try:
+            return asyncio.run(_invoke_cli(namespace))
+        except KeyboardInterrupt:
+            return 130
+
+    parser = build_parser()
+    namespace = parser.parse_args(raw_arguments)
+    try:
+        deepseek = _provider_config(namespace)
+    except ValueError as error:
+        parser.error(str(error))
     config = HarnessHostConfig(
         session_id=namespace.session_id,
         bind_host=namespace.host,
@@ -395,6 +538,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
         browser_runtime=namespace.browser_runtime,
         client_quorum=ClientQuorum(namespace.client_quorum),
         client_quorum_overrides=tuple(namespace.client_quorum_override),
+        deepseek=deepseek,
+        max_steps=namespace.max_steps,
     )
     try:
         asyncio.run(serve(config))
@@ -414,3 +559,132 @@ def _parse_quorum_override(value: str) -> tuple[str, ClientQuorum]:
     if not plugin_id:
         raise argparse.ArgumentTypeError("client quorum override Plugin ID must not be empty")
     return plugin_id, quorum
+
+
+def _provider_config(namespace: argparse.Namespace) -> DeepSeekHTTPConfig | None:
+    provider = namespace.llm_provider
+    model = namespace.llm_model
+    if provider is None and model is None:
+        return None
+    if provider is None or model is None:
+        raise ValueError("--llm-provider and --llm-model must be provided together")
+    api_key = os.environ.get(namespace.llm_api_key_env)
+    if not api_key:
+        raise ValueError(
+            f"configured LLM requires credential environment variable {namespace.llm_api_key_env!r}"
+        )
+    return DeepSeekHTTPConfig(
+        provider,
+        model,
+        namespace.llm_base_url,
+        api_key,
+        namespace.llm_connect_timeout,
+        namespace.llm_request_timeout,
+    )
+
+
+async def _invoke_cli(namespace: argparse.Namespace) -> int:
+    identifier = str(uuid.uuid4())
+    route = None
+    if namespace.provider is not None:
+        route = {"provider": namespace.provider, "model": namespace.model}
+    body: dict[str, object] = {"input": namespace.text}
+    if route is not None:
+        body["route"] = route
+    base_url = namespace.url.rstrip("/")
+    endpoint = f"{base_url}/api/v1/agent/invocations/{identifier}"
+    async with ClientSession() as client:
+        try:
+            response = await client.post(endpoint, json=body)
+            async with response:
+                payload = cast(object, await response.json())
+        except asyncio.CancelledError:
+            try:
+                await asyncio.shield(_cancel_cli_invocation(client, endpoint))
+            except (ClientError, TimeoutError):
+                pass
+            raise
+        except (ClientError, TimeoutError) as error:
+            print(f"invocation_transport: {error}", file=sys.stderr)
+            return 1
+    if response.status != 200:
+        if isinstance(payload, Mapping):
+            response_payload = cast(Mapping[object, object], payload)
+            raw_code = response_payload.get("code", "invocation_failed")
+            raw_message = response_payload.get(
+                "message", f"Host returned HTTP {response.status}"
+            )
+            code = raw_code if isinstance(raw_code, str) else "invocation_failed"
+            message = (
+                raw_message
+                if isinstance(raw_message, str)
+                else f"Host returned HTTP {response.status}"
+            )
+        else:
+            code = "invocation_failed"
+            message = f"Host returned HTTP {response.status}"
+        print(f"{code}: {message}", file=sys.stderr)
+        return 1
+    if not isinstance(payload, Mapping):
+        print("invalid_response: Host returned a non-object response", file=sys.stderr)
+        return 1
+    response_payload = cast(Mapping[object, object], payload)
+    message = response_payload.get("message")
+    if not isinstance(message, Mapping):
+        print("invalid_response: Host response omitted Assistant content", file=sys.stderr)
+        return 1
+    response_message = cast(Mapping[object, object], message)
+    content = response_message.get("content")
+    if not isinstance(content, str):
+        print("invalid_response: Host response omitted Assistant content", file=sys.stderr)
+        return 1
+    print(content)
+    return 0
+
+
+async def _cancel_cli_invocation(client: ClientSession, endpoint: str) -> None:
+    async with client.delete(endpoint) as response:
+        await response.read()
+
+
+def _parse_invocation_payload(payload: object) -> tuple[str, LLMRoute | None]:
+    if not isinstance(payload, Mapping):
+        raise TypeError("request body must be a JSON object")
+    raw_body = cast(Mapping[object, object], payload)
+    if any(not isinstance(key, str) for key in raw_body):
+        raise TypeError("request body keys must be strings")
+    body = cast(Mapping[str, object], raw_body)
+    if set(body) - {"input", "route"}:
+        raise ValueError("request body contains unsupported fields")
+    text = body.get("input")
+    if not isinstance(text, str) or not text:
+        raise ValueError("input must be a non-empty string")
+    raw_route = body.get("route")
+    if raw_route is None:
+        return text, None
+    if not isinstance(raw_route, Mapping):
+        raise TypeError("route must be a JSON object")
+    raw_route_mapping = cast(Mapping[object, object], raw_route)
+    if set(raw_route_mapping) != {"provider", "model"}:
+        raise ValueError("route must contain exactly provider and model")
+    provider = raw_route_mapping.get("provider")
+    model = raw_route_mapping.get("model")
+    if not isinstance(provider, str) or not isinstance(model, str):
+        raise TypeError("route provider and model must be strings")
+    return text, LLMRoute(provider, model)
+
+
+def _error_response(
+    status: int,
+    code: str,
+    message: str,
+    *,
+    retryable: bool | None = None,
+    provider_status: int | None = None,
+) -> web.Response:
+    payload: dict[str, object] = {"code": code, "message": message}
+    if retryable is not None:
+        payload["retryable"] = retryable
+    if provider_status is not None:
+        payload["provider_status"] = provider_status
+    return web.json_response(payload, status=status)
