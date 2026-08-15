@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write python_harness/README.md
-README.md: d7a087d9bac7f8b26b53177b34f96ac3b2712110
-README.zh.md: dfca8f5eb72a0ccb4ee536225aaf4480b2d1d73d
+README.md: a5acc8766a30c0496c2e895e1d5ac1593b5abce1
+README.zh.md: e88e814d0ad23c8b7bcb531e04190473325e722b

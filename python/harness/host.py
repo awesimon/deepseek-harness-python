@@ -5,14 +5,17 @@ from __future__ import annotations
 import argparse
 import asyncio
 import ipaddress
+import json
 import os
 import signal
 import socket
 import sys
+import time
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from html import escape
 from pathlib import Path
 from types import TracebackType
 from typing import Self, cast
@@ -70,7 +73,7 @@ from harness.plugins import (
     plugin_manager_plugin,
 )
 
-_BOOTSTRAP_HTML = b"""<!doctype html>
+_BOOTSTRAP_HTML = """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -78,7 +81,7 @@ _BOOTSTRAP_HTML = b"""<!doctype html>
   <title>DeepSeek Harness</title>
 </head>
 <body>
-  <main id="harness-root"></main>
+  <main id="harness-root" data-session-id="{session_id}" data-model="{model}"></main>
   <script type="module" src="/browser.js"></script>
 </body>
 </html>
@@ -98,6 +101,14 @@ class HostState(str, Enum):
 
 class HostStartupError(RuntimeError):
     """Raised when validated Host composition cannot reach a serving state."""
+
+
+@dataclass(frozen=True, slots=True)
+class _ChatCompletionRequest:
+    model: str
+    text: str
+    stream: bool
+    route: LLMRoute | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -384,6 +395,8 @@ class HarnessHost:
             "/api/v1/agent/invocations/{invocation_id}",
             self._invoke_agent,
         )
+        app.router.add_post("/chat/completions", self._chat_completions)
+        app.router.add_post("/v1/chat/completions", self._chat_completions)
         app.router.add_delete(
             "/api/v1/agent/invocations/{invocation_id}",
             self._cancel_invocation,
@@ -518,6 +531,92 @@ class HarnessHost:
             }
         )
 
+    async def _chat_completions(self, request: web.Request) -> web.StreamResponse:
+        """Serve the DeepSeek-compatible Chat Completions request contract."""
+        try:
+            payload = await request.json()
+        except (ValueError, TypeError):
+            return _error_response(400, "invalid_request", "request body must be JSON")
+        try:
+            completion = _parse_chat_completion_payload(
+                payload,
+                self.invocations.default_route,
+            )
+        except (TypeError, ValueError) as error:
+            return _error_response(400, "invalid_request", str(error))
+        identifier = f"chatcmpl-{uuid.uuid4().hex}"
+        try:
+            result = await self.invocations.invoke(
+                identifier,
+                completion.text,
+                route=completion.route,
+            )
+        except (DefaultLLMRouteUnavailableError, LLMRouteNotFoundError) as error:
+            return _error_response(503, "route_unavailable", str(error))
+        except InvocationServiceClosedError as error:
+            return _error_response(503, "invocation_service_closed", str(error))
+        except MaximumStepsExceededError as error:
+            return _error_response(409, "maximum_steps", str(error))
+        except InvocationCancelledError as error:
+            return _error_response(409, "invocation_cancelled", str(error))
+        except LLMProviderError as error:
+            status = 504 if error.failure.code == "provider_timeout" else 502
+            return _error_response(
+                status,
+                error.failure.code,
+                str(error),
+                retryable=error.failure.retryable,
+                provider_status=error.failure.http_status,
+            )
+        except LLMAdapterProtocolError as error:
+            return _error_response(502, "adapter_protocol", str(error))
+        except Exception:  # noqa: BLE001 -- provider details never cross the HTTP API
+            return _error_response(500, "invocation_failed", "Chat completion failed")
+
+        created = int(time.time())
+        if not completion.stream:
+            return web.json_response(
+                _chat_completion_payload(
+                    identifier,
+                    completion.model,
+                    created,
+                    result.message.content,
+                )
+            )
+        response = web.StreamResponse(
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream",
+            }
+        )
+        await response.prepare(request)
+        first = {
+            "id": identifier,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": completion.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"role": "assistant", "content": result.message.content},
+                    "finish_reason": None,
+                }
+            ],
+        }
+        terminal: dict[str, object] = {
+            "id": identifier,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": completion.model,
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        }
+        await response.write(f"data: {json.dumps(first, ensure_ascii=False)}\n\n".encode())
+        await response.write(f"data: {json.dumps(terminal)}\n\n".encode())
+        await response.write(b"data: [DONE]\n\n")
+        await response.write_eof()
+        return response
+
     async def _cancel_invocation(self, request: web.Request) -> web.Response:
         identifier = request.match_info["invocation_id"]
         if not await self.invocations.cancel(identifier):
@@ -556,7 +655,12 @@ class HarnessHost:
         )
 
     async def _index(self, _request: web.Request) -> web.Response:
-        return web.Response(body=_BOOTSTRAP_HTML, content_type="text/html")
+        model = "" if self.config.deepseek is None else self.config.deepseek.model
+        html = _BOOTSTRAP_HTML.format(
+            session_id=escape(self.config.session_id, quote=True),
+            model=escape(model, quote=True),
+        )
+        return web.Response(text=html, content_type="text/html")
 
     async def _browser_runtime(self, _request: web.Request) -> web.Response:
         assert self._browser_bytes is not None
@@ -834,6 +938,71 @@ def _parse_invocation_payload(payload: object) -> tuple[str, LLMRoute | None]:
     if not isinstance(provider, str) or not isinstance(model, str):
         raise TypeError("route provider and model must be strings")
     return text, LLMRoute(provider, model)
+
+
+def _parse_chat_completion_payload(
+    payload: object,
+    default_route: LLMRoute | None,
+) -> _ChatCompletionRequest:
+    if not isinstance(payload, Mapping):
+        raise TypeError("request body must be a JSON object")
+    body = cast(Mapping[object, object], payload)
+    raw_model = body.get("model")
+    if raw_model is None:
+        model = "deepseek-chat" if default_route is None else default_route.model
+    elif not isinstance(raw_model, str) or not raw_model:
+        raise TypeError("model must be a non-empty string")
+    else:
+        model = raw_model
+    raw_messages = body.get("messages")
+    if not isinstance(raw_messages, list) or not raw_messages:
+        raise ValueError("messages must be a non-empty array")
+    last_user: str | None = None
+    for raw_message in cast(list[object], raw_messages):
+        if not isinstance(raw_message, Mapping):
+            raise TypeError("each message must be a JSON object")
+        message = cast(Mapping[object, object], raw_message)
+        role = message.get("role")
+        content = message.get("content")
+        if role not in {"system", "user", "assistant", "tool"}:
+            raise ValueError("message role is unsupported")
+        if not isinstance(content, str):
+            raise TypeError("message content must be a string")
+        if role == "user":
+            last_user = content
+    if not last_user:
+        raise ValueError("messages must contain a non-empty user message")
+    raw_stream = body.get("stream", False)
+    if not isinstance(raw_stream, bool):
+        raise TypeError("stream must be a boolean")
+    if default_route is None:
+        route = None
+    elif model != default_route.model:
+        raise ValueError(f"model {model!r} is not configured")
+    else:
+        route = default_route
+    return _ChatCompletionRequest(model, last_user, raw_stream, route)
+
+
+def _chat_completion_payload(
+    identifier: str,
+    model: str,
+    created: int,
+    content: str,
+) -> dict[str, object]:
+    return {
+        "id": identifier,
+        "object": "chat.completion",
+        "created": created,
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+    }
 
 
 def _error_response(

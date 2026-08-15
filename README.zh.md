@@ -118,6 +118,7 @@ Distribution Name 是 `deepseek-harness-python`，唯一支持的 Import Root �
 - 提供确定性的 Backend-Only、Client-Only 和 Full-Stack Scaffolding，包括原子且禁止覆盖的生成和 Runtime Validation。
 - 提供 Multi-Page Readiness Aggregation，包括 `all_connected` 和 `any_connected` Quorum、Connection Generation 隔离、结构化诊断、恢复和 Disable Drainage。
 - 提供 DeepSeek-Compatible Streaming Provider Adapter、FIFO Session Invocation Service、可取消的 Host API 和 HTTP Invocation CLI。
+- 提供由 DeepSeek-Compatible Chat Completions JSON 和 SSE Route 驱动的响应式浏览器聊天界面。
 
 验收证据和明确排除项见[实现进度](docs/progress.md)、[产品化路线](docs/specs/productization-roadmap.md)和[基础完成规范](docs/specs/foundation-completion.md)。
 
@@ -133,7 +134,7 @@ uv --directory python run deepseek-harness-python \
   --plugins ./plugins \
   --client-quorum all_connected \
   --client-quorum-override com.example.preview=any_connected \
-  --browser-runtime frontend/dist/browser.js
+  --browser-runtime ../frontend/dist/browser.js
 ```
 
 命令会输出实际 URL。`--plugins` 可以重复传入，`uv --directory python run python -m harness` 接受相同参数。Backend-Only Host 可以省略 `--browser-runtime`，此时不会提供 Bootstrap Route。
@@ -168,6 +169,16 @@ curl http://127.0.0.1:8765/api/v1/sessions/default
 ```
 
 SQLite Persistence 是可选的。它会在 Event 进入内存 Snapshot 前持久化追加的 Event Envelope；损坏或不兼容的状态会使启动失败，不会被静默丢弃。
+
+浏览器页面使用与 DeepSeek-Compatible Client 相同的 Chat Completions Contract：
+
+```sh
+curl http://127.0.0.1:8765/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{"model":"deepseek-chat","messages":[{"role":"user","content":"Hello"}],"stream":false}'
+```
+
+同时提供 `/v1/chat/completions` Alias。页面渲染当前 Session Projection，并将 API Key 保留在 Host Process 中。
 
 需要在线执行生命周期操作时，启用 loopback Plugin Control API。该 API 默认关闭，并且拒绝非 loopback Listener：
 

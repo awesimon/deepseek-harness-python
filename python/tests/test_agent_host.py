@@ -73,6 +73,59 @@ class AgentHostTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["session_id"], "default")
         self.assertEqual(payload["message"], {"role": "assistant", "content": "world"})
 
+    async def test_deepseek_chat_completions_support_json_and_sse_contracts(self) -> None:
+        """The public Chat Completions routes expose DeepSeek-compatible responses."""
+
+        async def provider(request: web.Request) -> web.StreamResponse:
+            payload = await request.json()
+            self.assertEqual(payload["messages"][-1]["content"], "hello")
+            response = web.StreamResponse(headers={"Content-Type": "text/event-stream"})
+            await response.prepare(request)
+            await response.write(
+                b'data: {"choices":[{"index":0,"delta":{"content":"world"},"finish_reason":"stop"}]}\n\n'
+            )
+            await response.write(b"data: [DONE]\n\n")
+            return response
+
+        host = await self._start_host(await self._start_provider(provider))
+        body = {
+            "model": "deepseek-chat",
+            "messages": [{"role": "user", "content": "hello"}],
+            "stream": False,
+        }
+        async with ClientSession() as client:
+            response = await client.post(f"{host.base_url}/chat/completions", json=body)
+            self.assertEqual(response.status, 200)
+            completion = await response.json()
+            streamed = await client.post(
+                f"{host.base_url}/v1/chat/completions",
+                json={**body, "stream": True},
+            )
+            self.assertEqual(streamed.status, 200)
+            stream_text = await streamed.text()
+        self.assertEqual(completion["object"], "chat.completion")
+        self.assertEqual(completion["model"], "deepseek-chat")
+        self.assertEqual(
+            completion["choices"][0]["message"],
+            {"role": "assistant", "content": "world"},
+        )
+        self.assertIn('"object": "chat.completion.chunk"', stream_text)
+        self.assertIn("data: [DONE]", stream_text)
+
+    async def test_chat_completions_reports_an_unavailable_route(self) -> None:
+        """A Chat Completions request without a configured route fails explicitly."""
+        host = await self._start_host(None)
+        async with ClientSession() as client:
+            response = await client.post(
+                f"{host.base_url}/chat/completions",
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [{"role": "user", "content": "hello"}],
+                },
+            )
+        self.assertEqual(response.status, 503)
+        self.assertEqual((await response.json())["code"], "route_unavailable")
+
     async def test_validation_route_and_provider_failures_are_structured(self) -> None:
         """Bad input, missing routes, and upstream failures retain distinct HTTP codes."""
         host = await self._start_host(None)
