@@ -30,7 +30,7 @@ Plugin Manager 继续保存 Installed Plugin 和 Published Client Revision 的�
 
 每个 Desired Entry 包含 Plugin ID、Revision、Bundle URL、SHA-256 Digest、可选 Protocol Schema URL 和 Activation Policy。Desired Graph 中不存在的 Entry 必须 Unload。Revision 不同的 Entry 先 Unload，再 Load Target。相同 Entry 保持挂载。
 
-页面串行应用一个 Reconciliation Operation，并为每个发生变化的 Plugin 报告结果，最后报告 Operation Result。较新的 Reconcile 会取代旧 Operation。被取代 Operation ID 的结果只保留作 Diagnostic，绝不改变当前页面状态。
+页面串行应用一个 Reconciliation Operation，并为每个发生变化的 Plugin 报告结果，最后报告 Operation Result。HTTP/WebSocket Transport 对每个页面最多保留一个未完成 Operation。该 Operation 执行期间的 Publication Change 会合并到页面报告完成后发送的下一张完整 Desired Graph。Host 根据该 Operation 保存的 Desired Revision 和先前 Active Revision 校验结果，而不是根据之后的 Publication State。旧 Operation ID 绝不改变当前页面状态。
 
 ## Bundle 获取和执行
 
@@ -68,13 +68,13 @@ Event 在每个逻辑 Connection 内有序，但不持久化。模型可见后�
 - Bundle Hash Mismatch 使 Client Activation 失败并报告 Diagnostic。
 - Client Import 或 Cordis Activation Failure 会释放该次尝试拥有的 Effect，并报告 `failed`。
 - RPC Handler Exception 转换为 Structured Error；Cancellation 和 Disconnect 不会变成 Success。
-- Host Disable 或 Update 会取代未完成 Load Operation，并拒绝之后到达的过期结果。
+- Host Disable 或 Update 会把 Publication Change 合并到当前页面工作之后，并拒绝不属于该 Operation 授权 Revision 的结果。
 - Required Client Failure 影响 Plugin Manager 聚合状态；Optional Client Failure 使插件保持 Degraded。
 
 ## 验收标准
 
 - Schema Test 校验每个 Frame，并拒绝未知 Field、Version 和 Discriminant。
-- Host Test 验证初始 Reconciliation、相同 Revision No-Op、Update 先 Unload 后 Load、Disconnect Cleanup 和过期 Operation 拒绝。
+- Host Test 验证初始 Reconciliation、相同 Revision No-Op、Update 先 Unload 后 Load、Publication Change 合并、Disconnect Cleanup 和过期 Operation 拒绝。
 - Bundle Test 验证精确 Revision Retrieval、Immutable Digest Header 和 Disable 后 Not Found。
 - RPC Test 验证同 Plugin/Revision 授权、Structured Error、Cancellation、Handler Disposal 和过期 Call 拒绝。
 - TypeScript Test 挂载并卸载真实 Cordis TS 测试插件，并验证 Effect Cleanup。

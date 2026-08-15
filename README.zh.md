@@ -63,13 +63,31 @@ Distribution Name 是 `deepseek-harness-python`，唯一支持的 Import Root �
 - Backend-Only、Client-Only 和 Full-Stack Plugin 的动态 Install、Enable、Update、Rollback、Disable 和 Uninstall。
 - Content-Addressed Client Publication、规范 Browser Bridge Schema、RPC、Event Forwarding、Cancellation 和过期消息拒绝。
 - aiohttp HTTP/WebSocket Transport，以及支持 SHA-256 校验和 Fiber Cleanup 的真实 Cordis TS Browser Adapter。
+- 支持 Catalog Activation、Browser Bootstrap Delivery、Startup Rollback 和确定性 Shutdown 的可运行 Host Assembly。
+- 使用真实 Chromium 覆盖 Full-Stack Activation、RPC、双向 Event、Update、过期 Call 拒绝、Disable 和 Teardown。
 
 验收证据和明确排除项见[实现进度](docs/progress.md)和[基础完成规范](docs/specs/foundation-completion.md)。
+
+## 运行 Host
+
+先构建 Browser Runtime，再让 Host 读取一个或多个 Catalog Directory；每个目录的直接子目录包含 `plugin.toml`：
+
+```sh
+pnpm --dir frontend install
+pnpm --dir frontend run build:browser
+uv run deepseek-harness-python \
+  --port 0 \
+  --plugins ./plugins \
+  --browser-runtime frontend/dist/browser.js
+```
+
+命令会输出实际 URL。`--plugins` 可以重复传入，`python -m harness` 接受相同参数。Backend-Only Host 可以省略 `--browser-runtime`，此时不会提供 Bootstrap Route。
 
 ## 开发
 
 ```sh
 uv sync
+uv run playwright install chromium
 uv run python -m unittest discover -s tests -v
 uv run ruff check harness tests
 uv run pyright

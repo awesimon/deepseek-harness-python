@@ -130,3 +130,70 @@ class BridgeTransportTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
         self.assertEqual(dict(self.bridge.page_snapshot("page-1")), {})
         await second.close()
+
+    async def test_publication_changes_coalesce_until_reconcile_completes(self) -> None:
+        """One page never receives a superseding operation before acknowledging current work."""
+        publication = self.clients.publish("com.example.client", "rev-1", b"one")
+        socket = await self.client.ws_connect("/bridge")
+        await socket.send_json(
+            {"protocol": "1", "type": "hello", "pageId": "page-1", "loaded": {}}
+        )
+        initial = await socket.receive_json()
+        await socket.send_json(
+            {
+                "protocol": "1",
+                "type": "plugin-result",
+                "operationId": initial["operationId"],
+                "pluginId": "com.example.client",
+                "revision": "rev-1",
+                "state": "active",
+                "error": None,
+            }
+        )
+        await socket.send_json(
+            {
+                "protocol": "1",
+                "type": "reconcile-complete",
+                "operationId": initial["operationId"],
+                "success": True,
+                "error": None,
+            }
+        )
+        while not dict(self.bridge.page_snapshot("page-1")):
+            await asyncio.sleep(0)
+
+        publication.dispose()
+        removal = await socket.receive_json()
+        self.assertEqual(removal["desired"], [])
+        self.clients.publish("com.example.client", "rev-2", b"two")
+        await socket.send_json(
+            {
+                "protocol": "1",
+                "type": "plugin-result",
+                "operationId": removal["operationId"],
+                "pluginId": "com.example.client",
+                "revision": "rev-1",
+                "state": "absent",
+                "error": None,
+            }
+        )
+        await socket.send_json(
+            {
+                "protocol": "1",
+                "type": "reconcile-complete",
+                "operationId": removal["operationId"],
+                "success": True,
+                "error": None,
+            }
+        )
+
+        replacement = await socket.receive_json()
+        self.assertEqual(
+            [(item["pluginId"], item["revision"]) for item in replacement["desired"]],
+            [("com.example.client", "rev-2")],
+        )
+        self.assertGreater(
+            int(replacement["operationId"]),
+            int(removal["operationId"]),
+        )
+        await socket.close()

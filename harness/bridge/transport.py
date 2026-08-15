@@ -29,6 +29,8 @@ class _Connection:
     socket: web.WebSocketResponse
     send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     reconcile_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    reconcile_pending: bool = False
+    reconcile_dirty: bool = False
     tasks: set[asyncio.Task[None]] = field(
         default_factory=lambda: set[asyncio.Task[None]]()
     )
@@ -60,7 +62,7 @@ class BrowserBridgeTransport:
             self._protocol_schema,
         )
         app.router.add_get("/bridge", self._websocket)
-        app.on_cleanup.append(self._cleanup)
+        app.on_shutdown.append(self._shutdown)
         return app
 
     async def _bundle(self, request: web.Request) -> web.Response:
@@ -133,7 +135,7 @@ class BrowserBridgeTransport:
                 previous.dispose_events()
             await previous.socket.close(code=1000, message=b"page connection replaced")
         command = self.bridge.connect(hello.page_id, hello.loaded)
-        connection = _Connection(hello.page_id, socket)
+        connection = _Connection(hello.page_id, socket, reconcile_pending=True)
         self._connections[hello.page_id] = connection
         connection.dispose_events = self.bridge.attach_page_events(
             hello.page_id,
@@ -147,7 +149,7 @@ class BrowserBridgeTransport:
             self.bridge.report(connection.page_id, frame)
             return
         if isinstance(frame, ReconcileComplete):
-            self.bridge.complete(connection.page_id, frame)
+            await self._complete_reconcile(connection, frame)
             return
         if isinstance(frame, RpcCall):
             self._require_page(connection, frame.page_id)
@@ -175,12 +177,33 @@ class BrowserBridgeTransport:
             # Publication before the application loop starts is included in the first hello graph.
             return
         for connection in tuple(self._connections.values()):
-            self._start_task(connection, self._send_reconcile(connection))
+            self._start_task(connection, self._request_reconcile(connection))
 
-    async def _send_reconcile(self, connection: _Connection) -> None:
+    async def _request_reconcile(self, connection: _Connection) -> None:
         async with connection.reconcile_lock:
             if self._connections.get(connection.page_id) is not connection:
                 return
+            if connection.reconcile_pending:
+                connection.reconcile_dirty = True
+                return
+            connection.reconcile_pending = True
+            await connection.send(self.bridge.reconcile(connection.page_id))
+
+    async def _complete_reconcile(
+        self,
+        connection: _Connection,
+        frame: ReconcileComplete,
+    ) -> None:
+        self.bridge.complete(connection.page_id, frame)
+        async with connection.reconcile_lock:
+            connection.reconcile_pending = False
+            if (
+                not connection.reconcile_dirty
+                or self._connections.get(connection.page_id) is not connection
+            ):
+                return
+            connection.reconcile_dirty = False
+            connection.reconcile_pending = True
             await connection.send(self.bridge.reconcile(connection.page_id))
 
     def _start_task(
@@ -205,7 +228,7 @@ class BrowserBridgeTransport:
             "X-Content-SHA256": digest,
         }
 
-    async def _cleanup(self, _app: web.Application) -> None:
+    async def _shutdown(self, _app: web.Application) -> None:
         self._dispose_watch()
         sockets = tuple(connection.socket for connection in self._connections.values())
         if sockets:

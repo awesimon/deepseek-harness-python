@@ -30,7 +30,7 @@ A page opens a logical connection with `hello`, carrying its Page ID and current
 
 Each desired entry contains Plugin ID, Revision, bundle URL, SHA-256 digest, optional protocol schema URL, and activation policy. Entries absent from the desired graph must unload. Entries with a different Revision unload before the target loads. Matching entries remain mounted.
 
-The page applies one reconciliation operation serially and reports one result per changed plugin plus a final operation result. A newer reconcile supersedes an older operation. Results for a superseded Operation ID are retained only as diagnostics and never change current page state.
+The page applies one reconciliation operation serially and reports one result per changed plugin plus a final operation result. The HTTP/WebSocket transport keeps at most one uncompleted operation per page. Publication changes during that operation coalesce into the next complete desired graph after the page reports completion. The Host validates results against the desired and previously active revisions captured for that operation, not against later publication state. An old Operation ID never changes current page state.
 
 ## Bundle retrieval and evaluation
 
@@ -68,13 +68,13 @@ Events are ordered per logical connection. They are not durable; model-visible c
 - Bundle hash mismatch fails client activation and reports a diagnostic.
 - Client import or Cordis activation failure disposes attempt-owned Effects and reports `failed`.
 - RPC handler exceptions become structured errors; cancellation and disconnect do not become success.
-- Host disable or update supersedes outstanding load operations and rejects subsequent stale results.
+- Host disable or update coalesces publication changes behind current page work and rejects results outside the authorized operation revisions.
 - Required client failure affects aggregate Plugin Manager status; optional client failure leaves the plugin degraded.
 
 ## Acceptance criteria
 
 - Schema tests validate every frame and reject unknown fields, versions, and discriminants.
-- Host tests prove initial reconciliation, no-op matching revisions, unload-before-load updates, disconnect cleanup, and stale Operation rejection.
+- Host tests prove initial reconciliation, no-op matching revisions, unload-before-load updates, publication-change coalescing, disconnect cleanup, and stale Operation rejection.
 - Bundle tests prove exact revision retrieval, immutable digest headers, and not-found behavior after disable.
 - RPC tests prove same-plugin/revision authorization, structured errors, cancellation, handler disposal, and stale-call rejection.
 - TypeScript tests mount and unload a real Cordis TS test plugin and prove Effect cleanup.

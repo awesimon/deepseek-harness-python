@@ -45,6 +45,7 @@ class PagePluginSnapshot:
 class _Page:
     operation: int
     plugins: dict[str, PagePluginSnapshot]
+    desired: dict[str, str]
     completed_operation: str | None = None
 
 
@@ -113,7 +114,7 @@ class BrowserBridge:
             plugin_id: PagePluginSnapshot(revision, PagePluginState.ACTIVE, None)
             for plugin_id, revision in loaded.items()
         }
-        self._pages[page_id] = _Page(0, plugins)
+        self._pages[page_id] = _Page(0, plugins, {})
         return self.reconcile(page_id)
 
     def reconcile(self, page_id: str) -> ReconcileCommand:
@@ -139,6 +140,7 @@ class BrowserBridge:
                 )
             )
         desired = tuple(desired_items)
+        page.desired = {item.plugin_id: item.revision for item in desired}
         return ReconcileCommand(PROTOCOL_VERSION, str(page.operation), desired)
 
     def report(self, page_id: str, result: PluginLoadResult) -> None:
@@ -146,9 +148,13 @@ class BrowserBridge:
         page = self._page(page_id)
         if result.protocol != PROTOCOL_VERSION or result.operation_id != str(page.operation):
             raise StaleBridgeMessageError("stale reconciliation operation")
-        desired = self.clients.current_revision(result.plugin_id)
-        if result.state is not PagePluginState.ABSENT and desired != result.revision:
-            raise StaleBridgeMessageError("stale or unpublished client revision")
+        if result.state in (PagePluginState.ABSENT, PagePluginState.UNLOADING):
+            current = page.plugins.get(result.plugin_id)
+            expected = None if current is None else current.revision
+        else:
+            expected = page.desired.get(result.plugin_id)
+        if expected != result.revision:
+            raise StaleBridgeMessageError("revision is not authorized by this operation")
         if result.state is PagePluginState.ABSENT:
             page.plugins.pop(result.plugin_id, None)
         else:

@@ -63,13 +63,31 @@ The distribution name is `deepseek-harness-python`; the only supported import ro
 - Dynamic backend-only, client-only, and full-stack plugin install, enable, update, rollback, disable, and uninstall.
 - Content-addressed client publication, normative Browser Bridge Schema, RPC, Event forwarding, cancellation, and stale-message rejection.
 - aiohttp HTTP/WebSocket transport and a real Cordis TS browser adapter with SHA-256 verification and Fiber cleanup.
+- Runnable Host assembly with catalog activation, browser bootstrap delivery, startup rollback, and deterministic shutdown.
+- Real Chromium coverage for full-stack activation, RPC, bidirectional Events, update, stale-call rejection, disable, and teardown.
 
 See [implementation progress](docs/progress.md) and the [foundation completion specification](docs/specs/foundation-completion.md) for acceptance evidence and intentional exclusions.
+
+## Run the Host
+
+Build the browser runtime, then point the Host at one or more catalog directories whose immediate children contain `plugin.toml`:
+
+```sh
+pnpm --dir frontend install
+pnpm --dir frontend run build:browser
+uv run deepseek-harness-python \
+  --port 0 \
+  --plugins ./plugins \
+  --browser-runtime frontend/dist/browser.js
+```
+
+The command prints the effective URL. `--plugins` is repeatable, and `python -m harness` accepts the same arguments. Omit `--browser-runtime` for a backend-only Host without the bootstrap routes.
 
 ## Development
 
 ```sh
 uv sync
+uv run playwright install chromium
 uv run python -m unittest discover -s tests -v
 uv run ruff check harness tests
 uv run pyright

@@ -14,6 +14,12 @@ from .host import (
     PagePluginSnapshot,
     StaleBridgeMessageError,
 )
+from .plugin import (
+    BRIDGE_EVENT_REGISTRY,
+    BRIDGE_RPC_REGISTRY,
+    BROWSER_BRIDGE,
+    browser_bridge_plugin,
+)
 from .protocol import (
     PROTOCOL_VERSION,
     BridgeEvent,
@@ -31,7 +37,10 @@ from .protocol import (
 from .transport import BrowserBridgeTransport, create_bridge_app
 
 __all__ = [
+    "BRIDGE_EVENT_REGISTRY",
+    "BRIDGE_RPC_REGISTRY",
     "BRIDGE_SCHEMA",
+    "BROWSER_BRIDGE",
     "PROTOCOL_VERSION",
     "BridgeEvent",
     "BridgeEventRegistry",
@@ -51,6 +60,7 @@ __all__ = [
     "RpcCancel",
     "RpcResult",
     "StaleBridgeMessageError",
+    "browser_bridge_plugin",
     "create_bridge_app",
     "decode_frame",
     "encode_frame",

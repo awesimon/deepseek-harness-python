@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 
 from harness.bridge import (
+    BRIDGE_EVENT_REGISTRY,
+    BRIDGE_RPC_REGISTRY,
     PROTOCOL_VERSION,
     BridgeEvent,
     BridgeEventRegistry,
@@ -24,26 +26,22 @@ from harness.plugins import (
 )
 
 PLUGIN_ID = "com.example.full-stack"
-RPC_SERVICE = ServiceKey[BridgeRpcRegistry]("bridge.rpc")
-EVENT_SERVICE = ServiceKey[BridgeEventRegistry]("bridge.events")
 RECEIVED_SERVICE = ServiceKey[list[object]]("tests.bridge.received")
 
 
 def backend_source(revision_label: str) -> str:
     """Return a backend contribution with Effect-owned Bridge handlers."""
-    return f'''from harness.bridge import BridgeEventRegistry, BridgeRpcRegistry
+    return f'''from harness.bridge import BRIDGE_EVENT_REGISTRY, BRIDGE_RPC_REGISTRY
 from harness.cordis import PluginSpec, ServiceKey
 from harness.plugins import PLUGIN_RUNTIME_IDENTITY
 
-RPC = ServiceKey[BridgeRpcRegistry]("bridge.rpc")
-EVENTS = ServiceKey[BridgeEventRegistry]("bridge.events")
 RECEIVED = ServiceKey[list[object]]("tests.bridge.received")
 PLUGIN_ID = "{PLUGIN_ID}"
 LABEL = "{revision_label}"
 
 async def apply(ctx, config):
-    rpc = ctx.require(RPC)
-    events = ctx.require(EVENTS)
+    rpc = ctx.require(BRIDGE_RPC_REGISTRY)
+    events = ctx.require(BRIDGE_EVENT_REGISTRY)
     received = ctx.require(RECEIVED)
     identity = ctx.require(PLUGIN_RUNTIME_IDENTITY)
 
@@ -65,7 +63,7 @@ async def apply(ctx, config):
 plugin = PluginSpec(
     "full-stack-test",
     apply,
-    requires=(RPC, EVENTS, RECEIVED, PLUGIN_RUNTIME_IDENTITY),
+    requires=(BRIDGE_RPC_REGISTRY, BRIDGE_EVENT_REGISTRY, RECEIVED, PLUGIN_RUNTIME_IDENTITY),
 )
 '''
 
@@ -79,8 +77,8 @@ class FullStackLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.rpc = BridgeRpcRegistry()
         self.events = BridgeEventRegistry()
         self.received: list[object] = []
-        await self.runtime.root.provide(RPC_SERVICE, self.rpc)
-        await self.runtime.root.provide(EVENT_SERVICE, self.events)
+        await self.runtime.root.provide(BRIDGE_RPC_REGISTRY, self.rpc)
+        await self.runtime.root.provide(BRIDGE_EVENT_REGISTRY, self.events)
         await self.runtime.root.provide(RECEIVED_SERVICE, self.received)
         self.manager = PluginManager(self.runtime.root, clients=self.clients)
         self.bridge = BrowserBridge(self.clients, self.rpc, self.events)

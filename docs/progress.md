@@ -4,7 +4,7 @@ This document records implementation state and verification evidence. Each phase
 
 ## Current milestone
 
-The runtime foundation is complete. Backend-only, client-only, and full-stack plugins share one Manager-owned identity while PyCordis owns backend contributions and Cordis TS owns browser contributions. Both sides can change while the Host is running.
+Phase 5 is complete. The assembled Host now runs the Agent Spine, Dynamic Plugin Manager, Browser Bridge, plugin catalogs, and browser runtime under one lifecycle.
 
 ## Phase status
 
@@ -14,7 +14,8 @@ The runtime foundation is complete. Backend-only, client-only, and full-stack pl
 | 1. PyCordis kernel | [Cordis Core](specs/cordis-core.md) | Complete | 15 focused lifecycle and Event tests | Preserve lifecycle behavior through conformance tests |
 | 2. Backend Agent Spine | [Agent Spine](specs/agent-spine.md) | Complete | 14 Agent tests and strict static checks | Add durable Session storage as a separate capability |
 | 3. Dynamic Plugin Manager | [Plugin Manager](specs/plugin-manager.md) | Complete | 11 manifest and Manager tests plus the full-stack lifecycle | Replace the trusted in-process Host before admitting third-party code |
-| 4. Browser Bridge | [Browser Bridge](specs/browser-bridge.md) | Complete | 11 Python protocol/Bridge/transport tests, 6 TypeScript tests, and the full-stack lifecycle | Add host security and packaging only with their own specifications |
+| 4. Browser Bridge | [Browser Bridge](specs/browser-bridge.md) | Complete | 12 Python protocol/Bridge/transport tests, 7 TypeScript tests, and the full-stack lifecycle | Add multi-page activation aggregation only under its own specification |
+| 5. Host Assembly | [Host Assembly](specs/host-assembly.md) | Complete | 5 Host tests and a real Chromium update/disable scenario over HTTP/WebSocket | Specify the plugin SDK and authoring templates |
 
 ## Delivered foundation
 
@@ -29,6 +30,9 @@ The runtime foundation is complete. Backend-only, client-only, and full-stack pl
 - aiohttp HTTP/WebSocket transport with duplicate Page ID replacement and connection-owned cleanup.
 - Browser fetch, SHA-256 verification, dynamic module import, real Cordis TS Fiber mounting, replacement, failure rollback, and unload cleanup.
 - Keyless lifecycle coverage for enable, page activation, backend RPC, bidirectional Events, dual-contribution update, stale-call rejection, and disable.
+- Runnable Host composition with catalog activation, assigned ports, browser bootstrap delivery, command-line entrypoints, startup rollback, and deterministic shutdown.
+- Per-page reconciliation backpressure that coalesces publication changes until the active operation completes.
+- Real Chromium evidence that the assembled Host activates, updates, rejects stale calls, disables, and tears down a full-stack plugin.
 
 ## Verification commands
 
@@ -45,13 +49,17 @@ pnpm --dir frontend run test
 pnpm --dir frontend run build
 ```
 
-Current automated count: 53 Python tests and 7 TypeScript tests.
+Current automated count: 60 Python tests and 7 TypeScript tests.
+
+## Next milestone
+
+The next phase will specify a plugin authoring SDK and templates for backend-only, client-only, and full-stack plugins. Multi-page client activation aggregation remains a separate later capability.
 
 ## Intentional exclusions
 
 - `InProcessBackendHost` executes trusted local Python code. It removes runtime registrations and module lookup entries but cannot guarantee code eviction or isolate untrusted code.
 - Installed inventory and Session Events are in memory only.
 - Authentication, authorization policy, TLS termination, remote package download, signatures, dependency installation, and registry distribution are not part of the runtime foundation.
-- The aiohttp adapter is an application building block. A host must place it behind its deployment security policy before remote exposure.
+- The Host accepts trusted local paths and provides no authentication, authorization, TLS termination, or Internet-facing deployment policy.
 
 Each future implementation phase must add a specification under `docs/specs/` and update this progress document in the same change.
