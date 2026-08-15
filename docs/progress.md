@@ -4,7 +4,7 @@ This document records implementation state and verification evidence. Each phase
 
 ## Current milestone
 
-Phases 6 through 8 complete the supported plugin authoring path, deterministic project scaffolding, and multi-page browser readiness. The foundation now supports backend-only, client-only, and full-stack plugin development without changing either lifecycle kernel.
+Phases 1 through 8 complete the dual-Cordis lifecycle and plugin authoring foundation. Phase 9 now specifies a runnable Agent provider and invocation path; Phase 10 specifies the loopback Plugin Control Plane, catalog watching, and local browser SDK distribution. Implementation proceeds in that dependency order.
 
 ## Phase status
 
@@ -19,6 +19,8 @@ Phases 6 through 8 complete the supported plugin authoring path, deterministic p
 | 6. Plugin Authoring SDK | [Plugin SDK](specs/plugin-sdk.md) | Complete | 11 Python SDK tests, 12 TypeScript SDK tests, strict type checks, and library build/import smokes | Keep production identity injection separate from test fixtures |
 | 7. Plugin Templates | [Plugin Templates](specs/plugin-templates.md) | Complete | All three layouts, deterministic/no-overwrite tests, generated downstream checks, and assembled full-stack Chromium evidence | Publish the TypeScript SDK before external template consumption |
 | 8. Multi-Page Activation | [Multi-Page Activation](specs/multi-page-activation.md) | Complete | Pure aggregation, generation fencing, Manager/Host tests, and two-page Chromium evidence under both quorum modes | Add selectors or cross-Host readiness only under a new specification |
+| 9. Agent Runtime Assembly | [Agent Runtime Assembly](specs/agent-runtime-assembly.md) | Specified | Normative provider, invocation, cancellation, HTTP, CLI, and shutdown requirements | Implement before changing the shared Host for the control plane |
+| 10. Plugin Control Plane | [Plugin Control Plane](specs/plugin-control-plane.md) | Specified | Normative loopback API, optimistic concurrency, watcher, CLI, and local SDK distribution requirements | Implement after Phase 9 stabilizes shared Host and CLI surfaces |
 
 ## Delivered foundation
 
@@ -61,7 +63,7 @@ Current automated count: 92 Python tests and 19 TypeScript tests, including thre
 
 ## Next milestone
 
-The planned dual-Cordis foundation phases are complete. The next product milestone must start with its own normative specification; likely candidates are durable plugin inventory and Session storage, package distribution and trust, or isolated backend execution.
+Implement Phase 9 completely and verify the runnable Agent path before implementing Phase 10. Durable Session storage, persistent plugin inventory, remote distribution and trust, and isolated backend execution remain later specified phases.
 
 ## Intentional exclusions
 

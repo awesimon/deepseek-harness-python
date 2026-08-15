@@ -114,8 +114,10 @@ The session event log is the source of model history. Anything visible to a mode
 6. [Plugin Authoring SDK](plugin-sdk.md) provides the supported author APIs over both lifecycle runtimes.
 7. [Plugin Templates and Scaffolding](plugin-templates.md) depends on the SDK and generates all three contribution forms.
 8. [Multi-Page Client Activation](multi-page-activation.md) derives deployment readiness from Manager and Bridge state independently of authoring tooling.
+9. [Agent Runtime Assembly](agent-runtime-assembly.md) connects the Agent Spine to a DeepSeek-compatible provider and exposes serialized, cancellable Turn invocation.
+10. [Plugin Control Plane and Local Distribution](plugin-control-plane.md) adds loopback lifecycle operations, catalog watching, and a locally distributable browser SDK.
 
-Product capabilities such as persistence, filesystem, subprocess, sandbox, terminal, LSP, compaction, subagents, workflow, skills, settings, and credentials each require their own later specification and remain ordinary plugins over these foundations.
+Product capabilities such as persistence, filesystem, subprocess, sandbox, terminal, LSP, compaction, subagents, workflow, skills, settings, and credentials each require their own later specification and remain ordinary plugins over these foundations. Remote distribution, trust, and backend isolation also remain later phases.
 
 ## Acceptance milestone
 

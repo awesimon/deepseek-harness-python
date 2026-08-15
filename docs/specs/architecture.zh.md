@@ -114,8 +114,10 @@ Session Event Log 是模型历史的真源。模型可见的所有内容都必�
 6. [Plugin Authoring SDK](plugin-sdk.zh.md)提供两个生命周期 Runtime 上受支持的开发 API。
 7. [Plugin Templates and Scaffolding](plugin-templates.zh.md)依赖 SDK，并生成三种 Contribution Form。
 8. [Multi-Page Client Activation](multi-page-activation.zh.md)根据 Manager 和 Bridge State 推导部署 Readiness，不依赖开发工具。
+9. [Agent Runtime Assembly](agent-runtime-assembly.zh.md)将 Agent Spine 连接到 DeepSeek-Compatible Provider，并提供串行且可取消的 Turn Invocation。
+10. [Plugin Control Plane 和 Local Distribution](plugin-control-plane.zh.md)增加 Loopback Lifecycle Operation、Catalog Watching 和可在本地分发的 Browser SDK。
 
-Persistence、Filesystem、Subprocess、Sandbox、Terminal、LSP、Compaction、Subagent、Workflow、Skill、Settings 和 Credential 等产品能力各自需要后续规范，并继续作为这些基础之上的普通 Plugin。
+Persistence、Filesystem、Subprocess、Sandbox、Terminal、LSP、Compaction、Subagent、Workflow、Skill、Settings 和 Credential 等产品能力各自需要后续规范，并继续作为这些基础之上的普通 Plugin。Remote Distribution、Trust 和 Backend Isolation 也保留给后续阶段。
 
 ## 验收里程碑
 
