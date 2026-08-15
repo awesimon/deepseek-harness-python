@@ -44,6 +44,52 @@ Enable、Update、Rollback 和 Disable 都是运行时操作。Update 会释放�
 
 Backend Plugin 通过隔离的 `PLUGIN_RUNTIME_IDENTITY` Service 获得由 Manager 管理的精确身份。导出 `createPlugin(api)` 的 Browser Module 通过 Reconciliation 获得带 Revision 的 `PluginChannel`。Plugin 不自行计算 Runtime Revision，也不把它作为用户配置接收。
 
+Browser Readiness 与 Publication 分开推导。Host 默认要求每个已连接页面都激活 Required Client Contribution；部署可以全局或按 Plugin ID 选择 `any_connected`。Required Client Plugin 在页面连接前保持 `WAITING`，进入 `FAILED` 后可以在不重新发布的情况下恢复，并通过 Manager Snapshot 提供带 Page 信息的诊断。
+
+## 开发插件
+
+受支持的 Python 开发 API 是 `harness.sdk`。Backend-Only Plugin 使用 `define_backend_plugin`；需要 Browser Bridge 的 Plugin 使用 `define_bridge_backend_plugin` 和不包含身份的 RPC/Event Descriptor：
+
+```python
+from harness.sdk import define_bridge_backend_plugin, rpc_method
+
+DESCRIBE = rpc_method("describe")
+
+async def setup(ctx):
+    await ctx.channel.register_rpc(DESCRIBE, lambda arguments: arguments)
+
+plugin = define_bridge_backend_plugin(setup)
+```
+
+Client Plugin 使用对应的 TypeScript SDK。`defineClientPlugin` 将每个 Call、Event、Listener 和自定义 Effect 绑定到 Reconciliation 注入的 Plugin ID、Revision 和 Cordis TS Fiber：
+
+```ts
+import { defineClientPlugin, rpcMethod } from '@deepseek-harness/browser-bridge-client'
+
+const describe = rpcMethod<{ value: string }, { value: string }>('describe')
+
+export const createPlugin = defineClientPlugin(async (ctx) => {
+  const result = await ctx.call(describe, { value: 'ready' })
+  document.body.dataset.plugin = result.value
+  return () => { delete document.body.dataset.plugin }
+})
+```
+
+Production Factory 从不接受 Plugin ID 或 Revision。`harness.sdk.testing` 和 `@deepseek-harness/browser-bridge-client/testing` 下的 Test-Only Harness 会注入 Fixture Identity，但仍执行相同的 Public Lifecycle Path。
+
+使用 Scaffolder 创建完整的 Backend-Only、Client-Only 或 Full-Stack Project：
+
+```sh
+uv run deepseek-harness-plugin create \
+  --kind full-stack \
+  --plugin-id com.example.echo \
+  --destination plugins/echo
+
+uv run deepseek-harness-plugin validate plugins/echo
+```
+
+`python -m harness.scaffold` 与该命令等价。生成过程确定、拒绝任何已存在的目标，并且不会安装依赖。Client Template 会固定 TypeScript SDK Package；该 Package 发布前，仓库开发通过 Template Acceptance Test 所示方式链接 Workspace Package。
+
 ## 仓库布局
 
 ```text
@@ -65,6 +111,9 @@ Distribution Name 是 `deepseek-harness-python`，唯一支持的 Import Root �
 - aiohttp HTTP/WebSocket Transport，以及支持 SHA-256 校验和 Fiber Cleanup 的真实 Cordis TS Browser Adapter。
 - 支持 Catalog Activation、Browser Bootstrap Delivery、Startup Rollback 和确定性 Shutdown 的可运行 Host Assembly。
 - 使用真实 Chromium 覆盖 Full-Stack Activation、RPC、双向 Event、Update、过期 Call 拒绝、Disable 和 Teardown。
+- 提供 Python 和 TypeScript 开发 SDK，包括不可变且方向安全的 Descriptor、注入身份、生命周期拥有的 Registration 和内存 Test Harness。
+- 提供确定性的 Backend-Only、Client-Only 和 Full-Stack Scaffolding，包括原子且禁止覆盖的生成和 Runtime Validation。
+- 提供 Multi-Page Readiness Aggregation，包括 `all_connected` 和 `any_connected` Quorum、Connection Generation 隔离、结构化诊断、恢复和 Disable Drainage。
 
 验收证据和明确排除项见[实现进度](docs/progress.md)和[基础完成规范](docs/specs/foundation-completion.md)。
 
@@ -78,6 +127,8 @@ pnpm --dir frontend run build:browser
 uv run deepseek-harness-python \
   --port 0 \
   --plugins ./plugins \
+  --client-quorum all_connected \
+  --client-quorum-override com.example.preview=any_connected \
   --browser-runtime frontend/dist/browser.js
 ```
 
@@ -98,4 +149,4 @@ pnpm --dir frontend run test
 pnpm --dir frontend run build
 ```
 
-当前进程内 Python Backend Host 只适用于可信本地 Plugin。Authentication、Package Distribution、持久化 Inventory 和 Session、Dependency Installation、Signature，以及不受信任 Plugin 的 Process Isolation 仍属于产品或部署工作。
+当前进程内 Python Backend Host 只适用于可信本地 Plugin。Authentication、Package Distribution、持久化 Inventory 和 Session、Dependency Installation、Signature，以及不受信任 Plugin 的 Process Isolation 仍属于产品或部署工作。新的产品 Phase 必须先在 `docs/specs/` 下编写 Normative Specification，并在[实现进度](docs/progress.md)中记录可执行证据。

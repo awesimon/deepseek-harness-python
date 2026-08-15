@@ -4,7 +4,7 @@ This document records implementation state and verification evidence. Each phase
 
 ## Current milestone
 
-Phase 6 defines the supported plugin author APIs over PyCordis and Cordis TS. Phase 7 templates depend on that API; Phase 8 multi-page readiness can proceed independently after its state model is implemented.
+Phases 6 through 8 complete the supported plugin authoring path, deterministic project scaffolding, and multi-page browser readiness. The foundation now supports backend-only, client-only, and full-stack plugin development without changing either lifecycle kernel.
 
 ## Phase status
 
@@ -16,9 +16,9 @@ Phase 6 defines the supported plugin author APIs over PyCordis and Cordis TS. Ph
 | 3. Dynamic Plugin Manager | [Plugin Manager](specs/plugin-manager.md) | Complete | 11 manifest and Manager tests plus the full-stack lifecycle | Replace the trusted in-process Host before admitting third-party code |
 | 4. Browser Bridge | [Browser Bridge](specs/browser-bridge.md) | Complete | 12 Python protocol/Bridge/transport tests, 7 TypeScript tests, and the full-stack lifecycle | Add multi-page activation aggregation only under its own specification |
 | 5. Host Assembly | [Host Assembly](specs/host-assembly.md) | Complete | 5 Host tests and a real Chromium update/disable scenario over HTTP/WebSocket | Specify the plugin SDK and authoring templates |
-| 6. Plugin Authoring SDK | [Plugin SDK](specs/plugin-sdk.md) | Specified | Normative Python, TypeScript, protocol-helper, and test-harness requirements | Implement the SDK before templates consume it |
-| 7. Plugin Templates | [Plugin Templates](specs/plugin-templates.md) | Specified | Normative layouts, CLI, deterministic generation, and downstream checks | Implement after Phase 6 public APIs stabilize |
-| 8. Multi-Page Activation | [Multi-Page Activation](specs/multi-page-activation.md) | Specified | Normative membership, quorum, readiness, diagnostics, and Chromium requirements | Implement independently of authoring tooling |
+| 6. Plugin Authoring SDK | [Plugin SDK](specs/plugin-sdk.md) | Complete | 11 Python SDK tests, 12 TypeScript SDK tests, strict type checks, and library build/import smokes | Keep production identity injection separate from test fixtures |
+| 7. Plugin Templates | [Plugin Templates](specs/plugin-templates.md) | Complete | All three layouts, deterministic/no-overwrite tests, generated downstream checks, and assembled full-stack Chromium evidence | Publish the TypeScript SDK before external template consumption |
+| 8. Multi-Page Activation | [Multi-Page Activation](specs/multi-page-activation.md) | Complete | Pure aggregation, generation fencing, Manager/Host tests, and two-page Chromium evidence under both quorum modes | Add selectors or cross-Host readiness only under a new specification |
 
 ## Delivered foundation
 
@@ -36,6 +36,11 @@ Phase 6 defines the supported plugin author APIs over PyCordis and Cordis TS. Ph
 - Runnable Host composition with catalog activation, assigned ports, browser bootstrap delivery, command-line entrypoints, startup rollback, and deterministic shutdown.
 - Per-page reconciliation backpressure that coalesces publication changes until the active operation completes.
 - Real Chromium evidence that the assembled Host activates, updates, rejects stale calls, disables, and tears down a full-stack plugin.
+- Supported Python and TypeScript author APIs that bind identity and registrations to the Manager or reconciliation-owned Fiber.
+- Immutable RPC and bidirectional Event descriptors plus Python and TypeScript lifecycle test harnesses.
+- Deterministic atomic scaffolding for all three contribution forms with no overwrite path and generated downstream tests/builds.
+- Multi-page client aggregation with exact-Revision observations, connection generations, `WAITING`, both quorum policies, recovery, and drainage.
+- Real Chromium evidence for divergent page outcomes, membership recovery, Revision update, and a generated full-stack plugin exchanging RPC and Events.
 
 ## Verification commands
 
@@ -52,11 +57,11 @@ pnpm --dir frontend run test
 pnpm --dir frontend run build
 ```
 
-Current automated count: 60 Python tests and 7 TypeScript tests.
+Current automated count: 92 Python tests and 19 TypeScript tests, including three real Chromium scenarios.
 
 ## Next milestone
 
-Implement Phase 6 Plugin Authoring SDK and Phase 8 Multi-Page Activation as independent work streams. Begin Phase 7 only after the SDK exports and test harnesses pass their acceptance criteria.
+The planned dual-Cordis foundation phases are complete. The next product milestone must start with its own normative specification; likely candidates are durable plugin inventory and Session storage, package distribution and trust, or isolated backend execution.
 
 ## Intentional exclusions
 

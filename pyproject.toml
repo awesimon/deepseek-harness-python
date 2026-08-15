@@ -13,6 +13,7 @@ dependencies = ["aiohttp>=3.11,<4", "jsonschema>=4.23,<5"]
 
 [project.scripts]
 deepseek-harness-python = "harness.host:main"
+deepseek-harness-plugin = "harness.scaffold.cli:main"
 
 [dependency-groups]
 dev = [

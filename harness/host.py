@@ -25,8 +25,10 @@ from harness.bridge import (
 from harness.cordis import Cordis, Fiber, FiberState, PluginSpec
 from harness.plugins import (
     PLUGIN_MANAGER,
+    ClientQuorum,
     PluginDiagnostic,
     PluginManager,
+    PluginRevision,
     PluginState,
     plugin_manager_plugin,
 )
@@ -70,6 +72,8 @@ class HarnessHostConfig:
     port: int = 8765
     plugin_catalogs: tuple[Path, ...] = ()
     browser_runtime: Path | None = None
+    client_quorum: ClientQuorum = ClientQuorum.ALL_CONNECTED
+    client_quorum_overrides: tuple[tuple[str, ClientQuorum], ...] = ()
 
     def __post_init__(self) -> None:
         """Normalize paths and reject values that cannot define a listener."""
@@ -79,6 +83,25 @@ class HarnessHostConfig:
             raise ValueError("bind host must not be empty")
         if self.port < 0 or self.port > 65535:
             raise ValueError("port must be between 0 and 65535")
+        try:
+            client_quorum = ClientQuorum(self.client_quorum)
+        except ValueError as error:
+            raise ValueError("client quorum must be all_connected or any_connected") from error
+        object.__setattr__(self, "client_quorum", client_quorum)
+        overrides: list[tuple[str, ClientQuorum]] = []
+        seen: set[str] = set()
+        for plugin_id, configured in self.client_quorum_overrides:
+            if not plugin_id:
+                raise ValueError("client quorum override Plugin ID must not be empty")
+            if plugin_id in seen:
+                raise ValueError(f"duplicate client quorum override for {plugin_id!r}")
+            seen.add(plugin_id)
+            try:
+                quorum = ClientQuorum(configured)
+            except ValueError as error:
+                raise ValueError(f"unsupported client quorum override for {plugin_id!r}") from error
+            overrides.append((plugin_id, quorum))
+        object.__setattr__(self, "client_quorum_overrides", tuple(overrides))
         object.__setattr__(
             self,
             "plugin_catalogs",
@@ -171,7 +194,9 @@ class HarnessHost:
             try:
                 catalog = configured.resolve(strict=True)
             except OSError as error:
-                raise HostStartupError(f"cannot resolve plugin catalog {configured}: {error}") from error
+                raise HostStartupError(
+                    f"cannot resolve plugin catalog {configured}: {error}"
+                ) from error
             if not catalog.is_dir():
                 raise HostStartupError(f"plugin catalog is not a directory: {catalog}")
             catalogs.append(catalog)
@@ -208,31 +233,35 @@ class HarnessHost:
         fiber = await self.runtime.mount(specification, config)
         self._core_fibers.append(fiber)
         if fiber.state is not FiberState.ACTIVE:
-            raise HostStartupError(
-                f"core plugin {fiber.name!r} did not activate: {fiber.error!r}"
-            )
+            raise HostStartupError(f"core plugin {fiber.name!r} did not activate: {fiber.error!r}")
 
     async def _activate_catalogs(self) -> None:
+        revisions: list[PluginRevision] = []
         for catalog in self._plugin_catalogs:
             discovered = self.manager.discover(catalog)
             diagnostics = [item for item in discovered if isinstance(item, PluginDiagnostic)]
             if diagnostics:
-                detail = "; ".join(
-                    f"{item.contribution}: {item.message}" for item in diagnostics
-                )
+                detail = "; ".join(f"{item.contribution}: {item.message}" for item in diagnostics)
                 raise HostStartupError(f"plugin discovery failed: {detail}")
-            for revision in (
-                item for item in discovered if not isinstance(item, PluginDiagnostic)
-            ):
-                await self.manager.install(revision.root)
-                snapshot = await self.manager.enable(revision.manifest.plugin_id)
-                if snapshot.state is PluginState.FAILED:
-                    diagnostic = snapshot.diagnostic
-                    detail = "unknown activation failure" if diagnostic is None else diagnostic.message
-                    raise HostStartupError(
-                        f"plugin {snapshot.plugin_id!r} failed to activate: {detail}"
-                    )
-                self._enabled_plugins.append(snapshot.plugin_id)
+            revisions.extend(item for item in discovered if not isinstance(item, PluginDiagnostic))
+        for revision in revisions:
+            await self.manager.install(revision.root)
+        try:
+            self.manager.configure_client_quorums(
+                self.config.client_quorum,
+                dict(self.config.client_quorum_overrides),
+            )
+        except ValueError as error:
+            raise HostStartupError(f"invalid client quorum configuration: {error}") from error
+        for revision in revisions:
+            snapshot = await self.manager.enable(revision.manifest.plugin_id)
+            if snapshot.state is PluginState.FAILED:
+                diagnostic = snapshot.diagnostic
+                detail = "unknown activation failure" if diagnostic is None else diagnostic.message
+                raise HostStartupError(
+                    f"plugin {snapshot.plugin_id!r} failed to activate: {detail}"
+                )
+            self._enabled_plugins.append(snapshot.plugin_id)
 
     async def _start_listener(self) -> None:
         transport = BrowserBridgeTransport(self.bridge)
@@ -320,6 +349,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="catalog containing immediate plugin directories; repeatable",
     )
     parser.add_argument("--browser-runtime", type=Path, metavar="FILE")
+    parser.add_argument(
+        "--client-quorum",
+        choices=tuple(item.value for item in ClientQuorum),
+        default=ClientQuorum.ALL_CONNECTED.value,
+    )
+    parser.add_argument(
+        "--client-quorum-override",
+        action="append",
+        type=_parse_quorum_override,
+        default=[],
+        metavar="PLUGIN_ID=QUORUM",
+    )
     return parser
 
 
@@ -352,9 +393,24 @@ def main(arguments: Sequence[str] | None = None) -> int:
         port=namespace.port,
         plugin_catalogs=tuple(namespace.plugins),
         browser_runtime=namespace.browser_runtime,
+        client_quorum=ClientQuorum(namespace.client_quorum),
+        client_quorum_overrides=tuple(namespace.client_quorum_override),
     )
     try:
         asyncio.run(serve(config))
     except KeyboardInterrupt:
         return 130
     return 0
+
+
+def _parse_quorum_override(value: str) -> tuple[str, ClientQuorum]:
+    try:
+        plugin_id, quorum_text = value.split("=", 1)
+        quorum = ClientQuorum(quorum_text)
+    except (ValueError, TypeError) as error:
+        raise argparse.ArgumentTypeError(
+            "client quorum override must be PLUGIN_ID=all_connected|any_connected"
+        ) from error
+    if not plugin_id:
+        raise argparse.ArgumentTypeError("client quorum override Plugin ID must not be empty")
+    return plugin_id, quorum

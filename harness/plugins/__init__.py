@@ -1,5 +1,13 @@
 """Public Dynamic Plugin Manager API."""
 
+from .client_activation import (
+    ClientActivationAggregator,
+    ClientActivationSnapshot,
+    ClientActivationState,
+    ClientPageDiagnostic,
+    ClientPageObservation,
+    ClientQuorum,
+)
 from .manager import PluginDiagnostic, PluginManager, PluginSnapshot, PluginState
 from .manifest import (
     ActivationPolicy,
@@ -33,10 +41,16 @@ __all__ = [
     "BackendActivationError",
     "BackendHost",
     "BackendManifest",
+    "ClientActivationAggregator",
+    "ClientActivationSnapshot",
+    "ClientActivationState",
     "ClientArtifact",
     "ClientArtifactRegistry",
     "ClientManifest",
+    "ClientPageDiagnostic",
+    "ClientPageObservation",
     "ClientPublication",
+    "ClientQuorum",
     "InProcessBackendHost",
     "LoadedManifest",
     "ManifestError",

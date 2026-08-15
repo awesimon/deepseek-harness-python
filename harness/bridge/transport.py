@@ -26,14 +26,13 @@ from .protocol import (
 @dataclass(slots=True)
 class _Connection:
     page_id: str
+    generation: int
     socket: web.WebSocketResponse
     send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     reconcile_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     reconcile_pending: bool = False
     reconcile_dirty: bool = False
-    tasks: set[asyncio.Task[None]] = field(
-        default_factory=lambda: set[asyncio.Task[None]]()
-    )
+    tasks: set[asyncio.Task[None]] = field(default_factory=lambda: set[asyncio.Task[None]]())
     dispose_events: Callable[[], None] | None = None
 
     async def send(self, frame: BridgeFrame) -> None:
@@ -116,37 +115,49 @@ class BrowserBridgeTransport:
                     await socket.close(code=1008, message=str(error).encode("utf-8")[:120])
                     break
         finally:
-            if (
-                connection is not None
-                and self._connections.get(connection.page_id) is connection
-            ):
+            if connection is not None and self._connections.get(connection.page_id) is connection:
                 del self._connections[connection.page_id]
                 if connection.dispose_events is not None:
                     connection.dispose_events()
-                self.bridge.disconnect(connection.page_id)
+                self.bridge.disconnect(
+                    connection.page_id,
+                    generation=connection.generation,
+                )
                 if connection.tasks:
                     await asyncio.gather(*connection.tasks, return_exceptions=True)
         return socket
 
     async def _connect(self, socket: web.WebSocketResponse, hello: Hello) -> _Connection:
         previous = self._connections.get(hello.page_id)
-        if previous is not None:
-            if previous.dispose_events is not None:
-                previous.dispose_events()
-            await previous.socket.close(code=1000, message=b"page connection replaced")
+        if previous is not None and previous.dispose_events is not None:
+            previous.dispose_events()
         command = self.bridge.connect(hello.page_id, hello.loaded)
-        connection = _Connection(hello.page_id, socket, reconcile_pending=True)
+        generation = self.bridge.page_generation(hello.page_id)
+        connection = _Connection(
+            hello.page_id,
+            generation,
+            socket,
+            reconcile_pending=True,
+        )
         self._connections[hello.page_id] = connection
         connection.dispose_events = self.bridge.attach_page_events(
             hello.page_id,
             connection.send,
+            generation=generation,
         )
+        if previous is not None:
+            await previous.socket.close(code=1000, message=b"page connection replaced")
         await connection.send(command)
         return connection
 
     async def _receive(self, connection: _Connection, frame: BridgeFrame) -> None:
+        self._require_current(connection)
         if isinstance(frame, PluginLoadResult):
-            self.bridge.report(connection.page_id, frame)
+            self.bridge.report(
+                connection.page_id,
+                frame,
+                generation=connection.generation,
+            )
             return
         if isinstance(frame, ReconcileComplete):
             await self._complete_reconcile(connection, frame)
@@ -187,14 +198,23 @@ class BrowserBridgeTransport:
                 connection.reconcile_dirty = True
                 return
             connection.reconcile_pending = True
-            await connection.send(self.bridge.reconcile(connection.page_id))
+            await connection.send(
+                self.bridge.reconcile(
+                    connection.page_id,
+                    generation=connection.generation,
+                )
+            )
 
     async def _complete_reconcile(
         self,
         connection: _Connection,
         frame: ReconcileComplete,
     ) -> None:
-        self.bridge.complete(connection.page_id, frame)
+        self.bridge.complete(
+            connection.page_id,
+            frame,
+            generation=connection.generation,
+        )
         async with connection.reconcile_lock:
             connection.reconcile_pending = False
             if (
@@ -204,7 +224,12 @@ class BrowserBridgeTransport:
                 return
             connection.reconcile_dirty = False
             connection.reconcile_pending = True
-            await connection.send(self.bridge.reconcile(connection.page_id))
+            await connection.send(
+                self.bridge.reconcile(
+                    connection.page_id,
+                    generation=connection.generation,
+                )
+            )
 
     def _start_task(
         self,
@@ -220,6 +245,12 @@ class BrowserBridgeTransport:
         if page_id != connection.page_id:
             raise StaleBridgeMessageError("frame Page ID does not own this connection")
 
+    def _require_current(self, connection: _Connection) -> None:
+        if self._connections.get(connection.page_id) is not connection:
+            raise StaleBridgeMessageError("page connection generation was replaced")
+        if self.bridge.page_generation(connection.page_id) != connection.generation:
+            raise StaleBridgeMessageError("page connection generation was replaced")
+
     @staticmethod
     def _artifact_headers(digest: str) -> dict[str, str]:
         return {
@@ -233,7 +264,10 @@ class BrowserBridgeTransport:
         sockets = tuple(connection.socket for connection in self._connections.values())
         if sockets:
             await asyncio.gather(
-                *(socket.close(code=1001, message=b"Bridge transport stopping") for socket in sockets)
+                *(
+                    socket.close(code=1001, message=b"Bridge transport stopping")
+                    for socket in sockets
+                )
             )
 
 

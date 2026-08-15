@@ -14,6 +14,7 @@ from harness.bridge import (
     BRIDGE_EVENT_REGISTRY,
     BRIDGE_RPC_REGISTRY,
     BROWSER_BRIDGE,
+    CLIENT_ACTIVATION,
 )
 from harness.host import (
     HarnessHost,
@@ -22,7 +23,7 @@ from harness.host import (
     HostState,
     build_parser,
 )
-from harness.plugins import CLIENT_ARTIFACTS, PLUGIN_MANAGER, PluginState
+from harness.plugins import CLIENT_ARTIFACTS, PLUGIN_MANAGER, ClientQuorum, PluginState
 
 
 def backend_source(*, fail: bool = False) -> str:
@@ -85,6 +86,7 @@ class HarnessHostTests(unittest.IsolatedAsyncioTestCase):
             PLUGIN_MANAGER,
             CLIENT_ARTIFACTS,
             BROWSER_BRIDGE,
+            CLIENT_ACTIVATION,
             BRIDGE_RPC_REGISTRY,
             BRIDGE_EVENT_REGISTRY,
         ):
@@ -94,7 +96,7 @@ class HarnessHostTests(unittest.IsolatedAsyncioTestCase):
             health = await client.get(f"{host.base_url}/health")
             self.assertEqual(await health.json(), {"status": "ok"})
             index = await client.get(f"{host.base_url}/")
-            self.assertIn('/browser.js', await index.text())
+            self.assertIn("/browser.js", await index.text())
             runtime = await client.get(f"{host.base_url}/browser.js")
             self.assertEqual(await runtime.read(), browser.read_bytes())
 
@@ -112,15 +114,14 @@ class HarnessHostTests(unittest.IsolatedAsyncioTestCase):
         """All valid immediate children are enabled before startup returns."""
         self._write_plugin("z-last", "com.example.z-last", client=True)
         self._write_plugin("a-first", "com.example.a-first")
-        host = HarnessHost(
-            HarnessHostConfig(port=0, plugin_catalogs=(self.root / "catalog",))
-        )
+        host = HarnessHost(HarnessHostConfig(port=0, plugin_catalogs=(self.root / "catalog",)))
 
         await host.start()
 
         snapshots = host.manager.snapshot()
         self.assertEqual(tuple(snapshots), ("com.example.a-first", "com.example.z-last"))
-        self.assertTrue(all(item.state is PluginState.ACTIVE for item in snapshots.values()))
+        self.assertIs(snapshots["com.example.a-first"].state, PluginState.ACTIVE)
+        self.assertIs(snapshots["com.example.z-last"].state, PluginState.WAITING)
         self.assertEqual(
             host.bridge.clients.current_revision("com.example.z-last"),
             snapshots["com.example.z-last"].revision,
@@ -134,9 +135,7 @@ class HarnessHostTests(unittest.IsolatedAsyncioTestCase):
         malformed = self.root / "catalog" / "malformed"
         malformed.mkdir(parents=True)
         (malformed / "plugin.toml").write_text("[plugin]\nid = 'bad'\n", encoding="utf-8")
-        invalid = HarnessHost(
-            HarnessHostConfig(port=0, plugin_catalogs=(self.root / "catalog",))
-        )
+        invalid = HarnessHost(HarnessHostConfig(port=0, plugin_catalogs=(self.root / "catalog",)))
         with self.assertRaisesRegex(HostStartupError, "plugin discovery failed"):
             await invalid.start()
         self.assertIs(invalid.state, HostState.FAILED)
@@ -144,9 +143,7 @@ class HarnessHostTests(unittest.IsolatedAsyncioTestCase):
 
         malformed.rename(self.root / "ignored")
         self._write_plugin("broken", "com.example.broken", fail=True)
-        failed = HarnessHost(
-            HarnessHostConfig(port=0, plugin_catalogs=(self.root / "catalog",))
-        )
+        failed = HarnessHost(HarnessHostConfig(port=0, plugin_catalogs=(self.root / "catalog",)))
         with self.assertRaisesRegex(HostStartupError, "failed to activate"):
             await failed.start()
         self.assertIs(failed.state, HostState.FAILED)
@@ -166,6 +163,56 @@ class HarnessHostTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(host.runtime.fibers, ())
         with self.assertRaises(RuntimeError):
             await host.start()
+
+    async def test_client_quorum_overrides_are_validated_before_serving(self) -> None:
+        """Unknown and backend-only override targets reject Host startup."""
+        unknown = HarnessHost(
+            HarnessHostConfig(
+                port=0,
+                client_quorum_overrides=(("com.example.missing", ClientQuorum.ANY_CONNECTED),),
+            )
+        )
+        with self.assertRaisesRegex(HostStartupError, "unknown plugin"):
+            await unknown.start()
+
+        self._write_plugin("backend", "com.example.backend")
+        backend_only = HarnessHost(
+            HarnessHostConfig(
+                port=0,
+                plugin_catalogs=(self.root / "catalog",),
+                client_quorum_overrides=(("com.example.backend", ClientQuorum.ANY_CONNECTED),),
+            )
+        )
+        with self.assertRaisesRegex(HostStartupError, "backend-only plugin"):
+            await backend_only.start()
+
+    async def test_client_quorum_override_reaches_the_installed_aggregate(self) -> None:
+        """A valid per-plugin deployment choice replaces the Host default."""
+        self._write_plugin("client", "com.example.client", client=True)
+        host = HarnessHost(
+            HarnessHostConfig(
+                port=0,
+                plugin_catalogs=(self.root / "catalog",),
+                client_quorum_overrides=(("com.example.client", ClientQuorum.ANY_CONNECTED),),
+            )
+        )
+        await host.start()
+        snapshot = host.manager.snapshot()["com.example.client"]
+        self.assertIs(snapshot.client_activation.quorum, ClientQuorum.ANY_CONNECTED)
+        self.assertIs(snapshot.state, PluginState.WAITING)
+        await host.close()
+
+    def test_client_quorum_values_and_duplicate_overrides_are_rejected(self) -> None:
+        """Unsupported quorum names and duplicate identities fail configuration."""
+        with self.assertRaisesRegex(ValueError, "client quorum"):
+            HarnessHostConfig(client_quorum="majority")  # type: ignore[arg-type]
+        with self.assertRaisesRegex(ValueError, "duplicate client quorum override"):
+            HarnessHostConfig(
+                client_quorum_overrides=(
+                    ("com.example.client", ClientQuorum.ALL_CONNECTED),
+                    ("com.example.client", ClientQuorum.ANY_CONNECTED),
+                )
+            )
 
     def test_cli_parser_builds_the_shared_configuration_inputs(self) -> None:
         """Both executable entrypoints use the exported parser inputs."""

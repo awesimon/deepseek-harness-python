@@ -18,6 +18,7 @@ from .plugin import (
     BRIDGE_EVENT_REGISTRY,
     BRIDGE_RPC_REGISTRY,
     BROWSER_BRIDGE,
+    CLIENT_ACTIVATION,
     browser_bridge_plugin,
 )
 from .protocol import (
@@ -41,6 +42,7 @@ __all__ = [
     "BRIDGE_RPC_REGISTRY",
     "BRIDGE_SCHEMA",
     "BROWSER_BRIDGE",
+    "CLIENT_ACTIVATION",
     "PROTOCOL_VERSION",
     "BridgeEvent",
     "BridgeEventRegistry",

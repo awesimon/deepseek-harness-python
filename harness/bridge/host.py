@@ -10,6 +10,10 @@ from types import MappingProxyType
 
 from harness.agent.values import JsonValue, freeze_json
 from harness.plugins import ClientArtifactRegistry
+from harness.plugins.client_activation import (
+    ClientActivationAggregator,
+    ClientPageObservation,
+)
 
 from .events import BridgeEventRegistry, EventSink
 from .protocol import (
@@ -39,14 +43,17 @@ class PagePluginSnapshot:
     revision: str
     state: PagePluginState
     error: str | None
+    inventory_only: bool = False
 
 
 @dataclass(slots=True)
 class _Page:
+    generation: int
     operation: int
     plugins: dict[str, PagePluginSnapshot]
     desired: dict[str, str]
     completed_operation: str | None = None
+    completion_error: str | None = None
 
 
 class BridgeRpcRegistry:
@@ -93,12 +100,15 @@ class BrowserBridge:
         clients: ClientArtifactRegistry,
         rpc: BridgeRpcRegistry | None = None,
         events: BridgeEventRegistry | None = None,
+        aggregation: ClientActivationAggregator | None = None,
     ) -> None:
         self.clients = clients
         self.rpc = rpc or BridgeRpcRegistry()
         self.events = events or BridgeEventRegistry()
+        self.aggregation = aggregation
         self._pages: dict[str, _Page] = {}
         self._calls: dict[tuple[str, str], asyncio.Task[RpcResult]] = {}
+        self._next_generation = 0
 
     def connect(
         self,
@@ -109,18 +119,40 @@ class BrowserBridge:
         if not page_id:
             raise ValueError("page id must not be empty")
         if page_id in self._pages:
-            self.disconnect(page_id)
+            self._disconnect(page_id, notify=False)
+        self._next_generation += 1
+        published = self.clients.snapshot()
         plugins = {
-            plugin_id: PagePluginSnapshot(revision, PagePluginState.ACTIVE, None)
+            plugin_id: PagePluginSnapshot(
+                revision,
+                PagePluginState.ACTIVE,
+                None,
+                inventory_only=published.get(plugin_id) != revision,
+            )
             for plugin_id, revision in loaded.items()
         }
-        self._pages[page_id] = _Page(0, plugins, {})
-        return self.reconcile(page_id)
+        page = _Page(self._next_generation, 0, plugins, {})
+        self._pages[page_id] = page
+        command = self._reconcile(page)
+        self._notify_aggregation()
+        return command
 
-    def reconcile(self, page_id: str) -> ReconcileCommand:
+    def reconcile(
+        self,
+        page_id: str,
+        *,
+        generation: int | None = None,
+    ) -> ReconcileCommand:
         """Supersede prior work and return the complete desired graph."""
-        page = self._page(page_id)
+        page = self._page(page_id, generation)
+        command = self._reconcile(page)
+        self._notify_aggregation()
+        return command
+
+    def _reconcile(self, page: _Page) -> ReconcileCommand:
         page.operation += 1
+        page.completed_operation = None
+        page.completion_error = None
         desired_items: list[DesiredClient] = []
         for plugin_id, revision in self.clients.snapshot().items():
             artifact = self.clients.artifact(plugin_id, revision)
@@ -143,9 +175,15 @@ class BrowserBridge:
         page.desired = {item.plugin_id: item.revision for item in desired}
         return ReconcileCommand(PROTOCOL_VERSION, str(page.operation), desired)
 
-    def report(self, page_id: str, result: PluginLoadResult) -> None:
+    def report(
+        self,
+        page_id: str,
+        result: PluginLoadResult,
+        *,
+        generation: int | None = None,
+    ) -> None:
         """Apply a result only for the page's current operation and desired revision."""
-        page = self._page(page_id)
+        page = self._page(page_id, generation)
         if result.protocol != PROTOCOL_VERSION or result.operation_id != str(page.operation):
             raise StaleBridgeMessageError("stale reconciliation operation")
         if result.state in (PagePluginState.ABSENT, PagePluginState.UNLOADING):
@@ -162,18 +200,41 @@ class BrowserBridge:
                 result.revision,
                 result.state,
                 result.error,
+                inventory_only=False,
             )
+        self._notify_aggregation()
 
-    def complete(self, page_id: str, result: ReconcileComplete) -> None:
+    def complete(
+        self,
+        page_id: str,
+        result: ReconcileComplete,
+        *,
+        generation: int | None = None,
+    ) -> None:
         """Record completion only for the page's current reconciliation operation."""
-        page = self._page(page_id)
+        page = self._page(page_id, generation)
         if result.protocol != PROTOCOL_VERSION or result.operation_id != str(page.operation):
             raise StaleBridgeMessageError("stale reconciliation completion")
         page.completed_operation = result.operation_id
+        page.completion_error = result.error
+        self._notify_aggregation()
 
-    def page_snapshot(self, page_id: str) -> Mapping[str, PagePluginSnapshot]:
+    def page_snapshot(
+        self,
+        page_id: str,
+        *,
+        generation: int | None = None,
+    ) -> Mapping[str, PagePluginSnapshot]:
         """Return immutable page-local plugin state."""
-        return MappingProxyType(dict(self._page(page_id).plugins))
+        return MappingProxyType(dict(self._page(page_id, generation).plugins))
+
+    def page_generation(self, page_id: str) -> int:
+        """Return the accepted opaque connection generation for a page."""
+        return self._page(page_id).generation
+
+    def page_ids(self) -> tuple[str, ...]:
+        """Return connected Page IDs in deterministic order."""
+        return tuple(sorted(self._pages))
 
     def bundle(self, plugin_id: str, revision: str) -> bytes:
         """Return exact currently published bundle bytes."""
@@ -185,9 +246,15 @@ class BrowserBridge:
         """Return exact plugin protocol Schema bytes for a current Revision."""
         return self.clients.protocol_schema(plugin_id, revision)
 
-    def attach_page_events(self, page_id: str, sender: EventSink) -> Callable[[], None]:
+    def attach_page_events(
+        self,
+        page_id: str,
+        sender: EventSink,
+        *,
+        generation: int | None = None,
+    ) -> Callable[[], None]:
         """Attach a connection-owned outbound Event sink for a connected page."""
-        self._page(page_id)
+        self._page(page_id, generation)
         return self.events.attach_page(page_id, sender)
 
     async def receive_event(self, event: BridgeEvent) -> None:
@@ -224,12 +291,26 @@ class BrowserBridge:
         """Execute one authorized page-local RPC with cancellation tracking."""
         page = self._page(call.page_id)
         state = page.plugins.get(call.plugin_id)
-        if state is None or state.state is not PagePluginState.ACTIVE or state.revision != call.revision:
-            return RpcResult(PROTOCOL_VERSION, call.call_id, error_code="stale_client", error_message="page revision is not active")
+        if (
+            state is None
+            or state.state is not PagePluginState.ACTIVE
+            or state.revision != call.revision
+        ):
+            return RpcResult(
+                PROTOCOL_VERSION,
+                call.call_id,
+                error_code="stale_client",
+                error_message="page revision is not active",
+            )
         try:
             handler = self.rpc.resolve(call)
         except LookupError as error:
-            return RpcResult(PROTOCOL_VERSION, call.call_id, error_code="method_unavailable", error_message=str(error))
+            return RpcResult(
+                PROTOCOL_VERSION,
+                call.call_id,
+                error_code="method_unavailable",
+                error_message=str(error),
+            )
 
         async def invoke() -> RpcResult:
             try:
@@ -238,9 +319,19 @@ class BrowserBridge:
                     value = await value
                 return RpcResult(PROTOCOL_VERSION, call.call_id, result=freeze_json(value))
             except asyncio.CancelledError:
-                return RpcResult(PROTOCOL_VERSION, call.call_id, error_code="cancelled", error_message="RPC call cancelled")
+                return RpcResult(
+                    PROTOCOL_VERSION,
+                    call.call_id,
+                    error_code="cancelled",
+                    error_message="RPC call cancelled",
+                )
             except Exception as error:  # noqa: BLE001 -- handler failures cross a wire boundary
-                return RpcResult(PROTOCOL_VERSION, call.call_id, error_code="handler_error", error_message=str(error))
+                return RpcResult(
+                    PROTOCOL_VERSION,
+                    call.call_id,
+                    error_code="handler_error",
+                    error_message=str(error),
+                )
 
         key = (call.page_id, call.call_id)
         if key in self._calls:
@@ -260,13 +351,20 @@ class BrowserBridge:
         task.cancel()
         return True
 
-    def disconnect(self, page_id: str) -> None:
+    def disconnect(self, page_id: str, *, generation: int | None = None) -> None:
         """Remove ephemeral page state and cancel its outstanding calls."""
+        if generation is not None:
+            self._page(page_id, generation)
+        self._disconnect(page_id, notify=True)
+
+    def _disconnect(self, page_id: str, *, notify: bool) -> None:
         self._pages.pop(page_id, None)
         self.events.detach_page(page_id)
         for (owner, _call_id), task in tuple(self._calls.items()):
             if owner == page_id:
                 task.cancel()
+        if notify:
+            self._notify_aggregation()
 
     def _active_revision(self, page_id: str, plugin_id: str) -> str | None:
         state = self._page(page_id).plugins.get(plugin_id)
@@ -274,8 +372,54 @@ class BrowserBridge:
             return None
         return state.revision
 
-    def _page(self, page_id: str) -> _Page:
+    def _page(self, page_id: str, generation: int | None = None) -> _Page:
         try:
-            return self._pages[page_id]
+            page = self._pages[page_id]
         except KeyError as error:
             raise LookupError(f"page {page_id!r} is not connected") from error
+        if generation is not None and page.generation != generation:
+            raise StaleBridgeMessageError("page connection generation was replaced")
+        return page
+
+    def _notify_aggregation(self) -> None:
+        if self.aggregation is None:
+            return
+        pages: dict[str, tuple[ClientPageObservation, ...]] = {}
+        for page_id in sorted(self._pages):
+            page = self._pages[page_id]
+            plugin_ids = sorted(set(page.plugins) | set(page.desired))
+            observations: list[ClientPageObservation] = []
+            for plugin_id in plugin_ids:
+                plugin = page.plugins.get(plugin_id)
+                observations.append(
+                    ClientPageObservation(
+                        page_id,
+                        page.generation,
+                        str(page.operation),
+                        plugin_id,
+                        page.desired.get(plugin_id),
+                        None if plugin is None else plugin.revision,
+                        None if plugin is None else plugin.state.value,
+                        None if plugin is None else plugin.error,
+                        page.completed_operation == str(page.operation),
+                        page.completion_error,
+                        False if plugin is None else plugin.inventory_only,
+                    )
+                )
+            if not observations:
+                observations.append(
+                    ClientPageObservation(
+                        page_id,
+                        page.generation,
+                        str(page.operation),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        page.completed_operation == str(page.operation),
+                        page.completion_error,
+                    )
+                )
+            pages[page_id] = tuple(observations)
+        self.aggregation.observe(MappingProxyType(pages))

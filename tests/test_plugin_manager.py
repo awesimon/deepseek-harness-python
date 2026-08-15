@@ -8,7 +8,12 @@ import unittest
 from pathlib import Path
 
 from harness.cordis import Cordis, ServiceKey
-from harness.plugins import ClientArtifactRegistry, PluginManager, PluginState
+from harness.plugins import (
+    ClientActivationState,
+    ClientArtifactRegistry,
+    PluginManager,
+    PluginState,
+)
 
 DYNAMIC_VALUE = ServiceKey[str]("tests.dynamic-value")
 
@@ -70,6 +75,10 @@ class PluginManagerTests(unittest.IsolatedAsyncioTestCase):
         self._write_plugin("v1")
         installed = await self.manager.install(self.root)
         self.assertIs(installed.state, PluginState.DISABLED)
+        self.assertIs(
+            installed.client_activation.state,
+            ClientActivationState.NOT_APPLICABLE,
+        )
 
         active = await self.manager.enable("com.example.dynamic")
         self.assertIs(active.state, PluginState.ACTIVE)
