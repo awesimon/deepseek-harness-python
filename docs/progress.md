@@ -22,6 +22,7 @@ Phases 1 through 10 complete the dual-Cordis lifecycle, plugin authoring foundat
 | 9. Agent Runtime Assembly | [Agent Runtime Assembly](specs/agent-runtime-assembly.md) | Complete | DeepSeek-compatible fake-provider and optional real-API tests, FIFO/cancellation tests, real Host HTTP/CLI tests, and shutdown regression coverage | Add durable Sessions or other providers only under separate specifications |
 | 10. Plugin Control Plane | [Plugin Control Plane](specs/plugin-control-plane.md) | Complete | Loopback HTTP lifecycle API, optimistic concurrency, watchfiles hot updates, non-retrying CLI, bundled SDK export, isolated wheel scaffold/install/typecheck smoke | Specify durable inventory and remote distribution separately |
 | 11. Repository Layout Alignment | [Repository Layout](specs/repository-layout.md) | Complete | Root-level `frontend/` and `python/` sibling workspaces, explicit root commands, moved Python tests and package metadata, documentation pairing | Keep future workspaces at the repository root |
+| 12. Productization: Durable Session | [Productization Roadmap](specs/productization-roadmap.md) | Complete | SQLite Session Store, restart recovery, read-only Session projection API, strict event codec, lifecycle cleanup, and four focused persistence/Host tests | Implement persistent Plugin Inventory and restart reconciliation |
 
 ## Delivered foundation
 
@@ -51,6 +52,7 @@ Phases 1 through 10 complete the dual-Cordis lifecycle, plugin authoring foundat
 - Configurable catalog watcher with debounce, create/delete policies, in-flight coalescing, invalid-candidate preservation, and shared Manager lifecycle paths.
 - HTTP-only `deepseek-harness-python plugin` lifecycle CLI with JSON output, conflict visibility, and no automatic retry.
 - Bundled, digest-verified Browser SDK tarball and lockfile export; generated client projects vendor a relative `file:` dependency and install without a workspace symlink.
+- Optional SQLite-backed Session Events with strict tagged JSON encoding, restart recovery, atomic append sequencing, and a read-only `/api/v1/sessions/{session_id}` projection route.
 
 ## Verification commands
 
@@ -67,11 +69,11 @@ pnpm --dir frontend run test
 pnpm --dir frontend run build
 ```
 
-Current automated count: 122 Python tests and 19 TypeScript tests, including three real Chromium scenarios. The optional real DeepSeek API test self-skips without `DEEPSEEK_API_KEY`.
+Current automated count: 126 Python tests and 19 TypeScript tests, including three real Chromium scenarios. The optional real DeepSeek API test self-skips without `DEEPSEEK_API_KEY`.
 
 ## Next milestone
 
-Durable Session storage, persistent plugin inventory, remote distribution and trust, and isolated backend execution remain later specified phases. Future repository-level workspaces should remain siblings of `frontend/` and `python/`.
+Persistent plugin inventory, remote distribution and trust, and isolated backend execution remain later phases. Future repository-level workspaces should remain siblings of `frontend/` and `python/`.
 
 ## Intentional exclusions
 

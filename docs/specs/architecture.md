@@ -116,8 +116,9 @@ The session event log is the source of model history. Anything visible to a mode
 8. [Multi-Page Client Activation](multi-page-activation.md) derives deployment readiness from Manager and Bridge state independently of authoring tooling.
 9. [Agent Runtime Assembly](agent-runtime-assembly.md) connects the Agent Spine to a DeepSeek-compatible provider and exposes serialized, cancellable Turn invocation.
 10. [Plugin Control Plane and Local Distribution](plugin-control-plane.md) adds loopback lifecycle operations, catalog watching, and a locally distributable browser SDK.
+11. [Productization Roadmap](productization-roadmap.md) adds optional SQLite Session durability and a read-only local Session projection API.
 
-Product capabilities such as persistence, filesystem, subprocess, sandbox, terminal, LSP, compaction, subagents, workflow, skills, settings, and credentials each require their own later specification and remain ordinary plugins over these foundations. Remote distribution, trust, and backend isolation also remain later phases.
+Product capabilities such as filesystem, subprocess, sandbox, terminal, LSP, compaction, subagents, workflow, skills, settings, and credentials each require their own later specification and remain ordinary plugins over these foundations. Persistent Plugin Inventory, remote distribution, trust, and backend isolation also remain later phases.
 
 ## Acceptance milestone
 

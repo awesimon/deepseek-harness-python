@@ -119,7 +119,7 @@ The distribution name is `deepseek-harness-python`; the only supported import ro
 - Multi-page readiness aggregation with `all_connected` and `any_connected` quorum, connection-generation fencing, structured diagnostics, recovery, and disable drainage.
 - A DeepSeek-compatible streaming provider adapter, FIFO Session invocation service, cancellable Host API, and HTTP invocation CLI.
 
-See [implementation progress](docs/progress.md) and the [foundation completion specification](docs/specs/foundation-completion.md) for acceptance evidence and intentional exclusions.
+See [implementation progress](docs/progress.md), the [productization roadmap](docs/specs/productization-roadmap.md), and the [foundation completion specification](docs/specs/foundation-completion.md) for acceptance evidence and intentional exclusions.
 
 ## Run the Host
 
@@ -153,6 +153,21 @@ uv --directory python run deepseek-harness-python invoke \
 ```
 
 The provider consumes SSE internally so raw chunks remain in the Session log, while the invocation API returns only the terminal Assistant message. Turns for the process-lifetime Session run in FIFO order. The API key is read only when provider activation is requested; the invoke command never reads or sends it directly.
+
+For a product-style local run, persist the Session Log and inspect its deterministic projection after restart:
+
+```sh
+uv --directory python run deepseek-harness-python \
+  --session-id default \
+  --session-db .data/sessions.sqlite \
+  --llm-provider deepseek \
+  --llm-model deepseek-chat \
+  --port 8765
+
+curl http://127.0.0.1:8765/api/v1/sessions/default
+```
+
+SQLite persistence is optional. It stores the append-only event envelopes before they enter the in-memory snapshot; corrupt or incompatible state fails startup instead of being silently discarded.
 
 Enable the loopback Plugin Control API when you need live lifecycle operations. The API is disabled by default and refuses non-loopback listeners:
 

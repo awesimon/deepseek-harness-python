@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from harness.cordis import Context, PluginSpec, ServiceKey
 
 from .llm import LLMRegistry
 from .loop import AgentLoop
+from .persistence import SQLiteSessionStore
 from .registries import PromptRegistry, ToolRegistry
 from .session import SessionLog
 from .values import SessionId
@@ -24,6 +26,7 @@ class AgentSpineConfig:
     """Configuration for one Session-scoped Agent Spine."""
 
     session_id: str
+    session_db: Path | None = None
 
     def __post_init__(self) -> None:
         if not self.session_id:
@@ -34,7 +37,13 @@ def agent_spine_plugin() -> PluginSpec[AgentSpineConfig]:
     """Return the plugin that provides all Phase 2 Agent Services."""
 
     async def apply(context: Context, config: AgentSpineConfig) -> None:
-        log = SessionLog(SessionId(config.session_id))
+        store = None if config.session_db is None else SQLiteSessionStore(config.session_db)
+        try:
+            log = SessionLog(SessionId(config.session_id), store)
+        except BaseException:
+            if store is not None:
+                store.close()
+            raise
         prompts = PromptRegistry()
         tools = ToolRegistry()
         llms = LLMRegistry()
@@ -44,5 +53,6 @@ def agent_spine_plugin() -> PluginSpec[AgentSpineConfig]:
         await context.provide(TOOL_REGISTRY, tools)
         await context.provide(LLM_REGISTRY, llms)
         await context.provide(AGENT_LOOP, loop)
+        await context.effect(lambda: log.close, "session-store-lifecycle")
 
     return PluginSpec("agent-spine", apply)

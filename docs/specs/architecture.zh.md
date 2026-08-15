@@ -116,8 +116,9 @@ Session Event Log 是模型历史的真源。模型可见的所有内容都必�
 8. [Multi-Page Client Activation](multi-page-activation.zh.md)根据 Manager 和 Bridge State 推导部署 Readiness，不依赖开发工具。
 9. [Agent Runtime Assembly](agent-runtime-assembly.zh.md)将 Agent Spine 连接到 DeepSeek-Compatible Provider，并提供串行且可取消的 Turn Invocation。
 10. [Plugin Control Plane 和 Local Distribution](plugin-control-plane.zh.md)增加 Loopback Lifecycle Operation、Catalog Watching 和可在本地分发的 Browser SDK。
+11. [Productization Roadmap](productization-roadmap.zh.md)增加可选的 SQLite Session Persistence 和本地只读 Session Projection API。
 
-Persistence、Filesystem、Subprocess、Sandbox、Terminal、LSP、Compaction、Subagent、Workflow、Skill、Settings 和 Credential 等产品能力各自需要后续规范，并继续作为这些基础之上的普通 Plugin。Remote Distribution、Trust 和 Backend Isolation 也保留给后续阶段。
+Filesystem、Subprocess、Sandbox、Terminal、LSP、Compaction、Subagent、Workflow、Skill、Settings 和 Credential 等产品能力各自需要后续规范，并继续作为这些基础之上的普通 Plugin。持久化 Plugin Inventory、Remote Distribution、Trust 和 Backend Isolation 也保留给后续阶段。
 
 ## 验收里程碑
 

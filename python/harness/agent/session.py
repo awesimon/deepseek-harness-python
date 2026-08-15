@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .values import (
     JsonValue,
@@ -19,6 +20,9 @@ from .values import (
     freeze_json,
     thaw_json,
 )
+
+if TYPE_CHECKING:
+    from .persistence import SessionStore
 
 
 class UnknownSessionEventError(RuntimeError):
@@ -111,23 +115,31 @@ class SessionEnvelope:
 
 
 class SessionLog:
-    """In-memory append-only Session Event authority."""
+    """Append-only Session Event authority with optional durable storage."""
 
-    def __init__(self, session_id: SessionId) -> None:
+    def __init__(self, session_id: SessionId, store: SessionStore | None = None) -> None:
         if not session_id:
             raise ValueError("session id must not be empty")
         self.session_id = session_id
-        self._events: list[SessionEnvelope] = []
+        self._store = store
+        self._events: list[SessionEnvelope] = [] if store is None else list(store.load(session_id))
 
     def append(self, event: SessionEvent) -> SessionEnvelope:
         """Append one immutable Event and assign its sequence number."""
         envelope = SessionEnvelope(len(self._events) + 1, event)
+        if self._store is not None:
+            self._store.append(self.session_id, envelope)
         self._events.append(envelope)
         return envelope
 
     def snapshot(self) -> tuple[SessionEnvelope, ...]:
         """Return an immutable snapshot of all current Events."""
         return tuple(self._events)
+
+    def close(self) -> None:
+        """Close optional durable storage."""
+        if self._store is not None:
+            self._store.close()
 
 
 @dataclass(frozen=True, slots=True)

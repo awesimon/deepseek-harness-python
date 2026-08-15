@@ -34,8 +34,10 @@ from harness.agent import (
     LLMRoute,
     LLMRouteNotFoundError,
     MaximumStepsExceededError,
+    SessionProjector,
     agent_runtime_plugin,
     agent_spine_plugin,
+    event_json,
 )
 from harness.bridge import (
     BROWSER_BRIDGE,
@@ -111,6 +113,7 @@ class HarnessHostConfig:
     client_quorum_overrides: tuple[tuple[str, ClientQuorum], ...] = ()
     deepseek: DeepSeekHTTPConfig | None = None
     max_steps: int = 8
+    session_db: Path | None = None
     control_enabled: bool = False
     watched_catalogs: tuple[Path, ...] = ()
     watcher: PluginWatcherConfig | None = None
@@ -156,6 +159,8 @@ class HarnessHostConfig:
         )
         if self.browser_runtime is not None:
             object.__setattr__(self, "browser_runtime", Path(self.browser_runtime))
+        if self.session_db is not None:
+            object.__setattr__(self, "session_db", Path(self.session_db))
 
 
 class HarnessHost:
@@ -302,7 +307,7 @@ class HarnessHost:
     async def _mount_core(self) -> None:
         await self._mount_core_plugin(
             agent_spine_plugin(),
-            AgentSpineConfig(self.config.session_id),
+            AgentSpineConfig(self.config.session_id, self.config.session_db),
         )
         await self._mount_core_plugin(
             agent_runtime_plugin(),
@@ -383,6 +388,7 @@ class HarnessHost:
             "/api/v1/agent/invocations/{invocation_id}",
             self._cancel_invocation,
         )
+        app.router.add_get("/api/v1/sessions/{session_id}", self._session)
         if self.config.control_enabled:
             PluginControlHttpAdapter(self.control, lambda: self.base_url).register(app)
         if self._browser_bytes is not None:
@@ -525,6 +531,30 @@ class HarnessHost:
             status=202,
         )
 
+    async def _session(self, request: web.Request) -> web.Response:
+        session_id = request.match_info["session_id"]
+        if session_id != str(self.invocations.log.session_id):
+            return _error_response(404, "session_not_found", "Session ID is not active")
+        log = self.invocations.log
+
+        return web.json_response(
+            {
+                "session_id": session_id,
+                "events": [
+                    {"sequence": envelope.sequence, **event_json(envelope.event)}
+                    for envelope in log.snapshot()
+                ],
+                "transcript": [
+                    {
+                        "sequence": entry.sequence,
+                        "kind": entry.kind,
+                        "content": entry.content,
+                    }
+                    for entry in SessionProjector(log).transcript()
+                ],
+            }
+        )
+
     async def _index(self, _request: web.Request) -> web.Response:
         return web.Response(body=_BOOTSTRAP_HTML, content_type="text/html")
 
@@ -541,6 +571,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Return the command-line parser shared by both executable entrypoints."""
     parser = argparse.ArgumentParser(prog="deepseek-harness-python")
     parser.add_argument("--session-id", default="default")
+    parser.add_argument("--session-db", type=Path, metavar="FILE")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument(
@@ -659,6 +690,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         client_quorum_overrides=tuple(namespace.client_quorum_override),
         deepseek=deepseek,
         max_steps=namespace.max_steps,
+        session_db=namespace.session_db,
         control_enabled=namespace.control,
         watched_catalogs=tuple(namespace.watch_plugins),
         watcher=(

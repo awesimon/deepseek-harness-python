@@ -119,7 +119,7 @@ Distribution Name 是 `deepseek-harness-python`，唯一支持的 Import Root �
 - 提供 Multi-Page Readiness Aggregation，包括 `all_connected` 和 `any_connected` Quorum、Connection Generation 隔离、结构化诊断、恢复和 Disable Drainage。
 - 提供 DeepSeek-Compatible Streaming Provider Adapter、FIFO Session Invocation Service、可取消的 Host API 和 HTTP Invocation CLI。
 
-验收证据和明确排除项见[实现进度](docs/progress.md)和[基础完成规范](docs/specs/foundation-completion.md)。
+验收证据和明确排除项见[实现进度](docs/progress.md)、[产品化路线](docs/specs/productization-roadmap.md)和[基础完成规范](docs/specs/foundation-completion.md)。
 
 ## 运行 Host
 
@@ -153,6 +153,21 @@ uv --directory python run deepseek-harness-python invoke \
 ```
 
 Provider 在内部消费 SSE，因此 Raw Chunk 会保留在 Session Log 中，而 Invocation API 只返回终止 Assistant Message。Process-Lifetime Session 的 Turn 按 FIFO 顺序执行。只有请求启用 Provider 时才会读取 API Key；Invoke Command 不会自行读取或直接发送凭据。
+
+要进行产品化的本地运行，可以持久化 Session Log，并在重启后查询确定性的 Projection：
+
+```sh
+uv --directory python run deepseek-harness-python \
+  --session-id default \
+  --session-db .data/sessions.sqlite \
+  --llm-provider deepseek \
+  --llm-model deepseek-chat \
+  --port 8765
+
+curl http://127.0.0.1:8765/api/v1/sessions/default
+```
+
+SQLite Persistence 是可选的。它会在 Event 进入内存 Snapshot 前持久化追加的 Event Envelope；损坏或不兼容的状态会使启动失败，不会被静默丢弃。
 
 需要在线执行生命周期操作时，启用 loopback Plugin Control API。该 API 默认关闭，并且拒绝非 loopback Listener：
 
